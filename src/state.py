@@ -9,3 +9,6 @@ class State:
 
     def __hash__(self):
         return hash((self.x, self.y, self.t))
+
+    def __str__(self):
+        return "<Position: [%d; %d], Time: %d" % (self.x, self.y, self.t)

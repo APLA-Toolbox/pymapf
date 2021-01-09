@@ -13,22 +13,23 @@ if __name__ == "__main__":
     # doctest.testmod()
 
     w = World(10, 10, 0.2)
-    
+
     # Initialize
     agents = []
-    for i in range(2, 6):
-        start, goal = w.get_start_goal(0.2)
+    for i in range(2, 9):
+        start, goal = w.get_start_goal(0.5)
         agents.append(Agent(i, start, goal))
-    
+
     global_path = dict()
     for agent in agents:
+        print("=========")
         print(agent)
         astar = AStar(agent, w, global_path)
         path = astar.search()
         global_path[agent.id] = path
         print("Conflicts found: %d" % agent.conflicts_found)
-    
+        print("Path:")
+        for p in path:
+            print(p)
     dv = DataViz(w, agents)
     dv.plot_paths(global_path)
-
-

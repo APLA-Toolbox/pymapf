@@ -5,6 +5,7 @@ from .world import World
 from .state import State
 from .agent import Agent
 
+
 class AStar:
     """
     >>> wd = World(10, 10, 0.2)
@@ -23,8 +24,28 @@ class AStar:
     """
 
     def __init__(self, agent: Agent, world: World, global_paths):
-        self.start = Node(agent.init_pos[1], agent.init_pos[0], 0, agent.goal_pos[1], agent.goal_pos[0], 0, False, True, None)
-        self.target = Node(agent.goal_pos[1], agent.goal_pos[0], -1, agent.goal_pos[1], agent.goal_pos[0], float("inf"), False, False, None)
+        self.start = Node(
+            agent.init_pos[1],
+            agent.init_pos[0],
+            0,
+            agent.goal_pos[1],
+            agent.goal_pos[0],
+            0,
+            False,
+            True,
+            None,
+        )
+        self.target = Node(
+            agent.goal_pos[1],
+            agent.goal_pos[0],
+            -1,
+            agent.goal_pos[1],
+            agent.goal_pos[0],
+            float("inf"),
+            False,
+            False,
+            None,
+        )
         self.world = world
         self.agent = agent
 
@@ -40,7 +61,10 @@ class AStar:
         opened_nodes = 0
         while self.opened_nodes > 0:
             # Open Nodes are sorted using __lt__
-            current_key = min([n for n in self.nodes if self.nodes[n].is_open], key=(lambda k: self.nodes[k].f_cost))
+            current_key = min(
+                [n for n in self.nodes if self.nodes[n].is_open],
+                key=(lambda k: self.nodes[k].f_cost),
+            )
             current_node = self.nodes[current_key]
 
             if current_node.pos == self.target.pos:
@@ -49,7 +73,7 @@ class AStar:
                 self.agent.path = self.retrace_path(current_node)
                 return self.agent.path
 
-            if current_node.t > 2*self.start.h_cost:
+            if current_node.t > 2 * self.start.h_cost:
                 break
 
             current_node.is_closed = True
@@ -90,7 +114,9 @@ class AStar:
             if self.world.grid[pos_y][pos_x] != 0:
                 continue
 
-            if self.agent.in_conflict(State(pos_x, pos_y, parent.t + 1), self.global_paths):
+            if self.agent.in_conflict(
+                State(pos_x, pos_y, parent.t + 1), self.global_paths
+            ):
                 continue
 
             successors.append(

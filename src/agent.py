@@ -18,4 +18,10 @@ class Agent:
         return False
 
     def __str__(self):
-        return "Id: %d | Init: [%d;%d] | Goal: [%d;%d]" % (self.id, self.init_pos[0], self.init_pos[1], self.goal_pos[0], self.goal_pos[1])
+        return "Id: %d | Init: [%d;%d] | Goal: [%d;%d]" % (
+            self.id,
+            self.init_pos[0],
+            self.init_pos[1],
+            self.goal_pos[0],
+            self.goal_pos[1],
+        )

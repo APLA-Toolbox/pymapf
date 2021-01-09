@@ -2,6 +2,7 @@ from math import sqrt
 from .common import HEURISTIC
 from .state import State
 
+
 class Node:
     """
     >>> k = Node(0, 0, 4, 3, 0, None)
@@ -18,7 +19,18 @@ class Node:
     True
     """
 
-    def __init__(self, pos_x: int, pos_y: int, t: int, goal_x: int, goal_y: int, g_cost: float, is_closed:bool, is_open:bool, parent):
+    def __init__(
+        self,
+        pos_x: int,
+        pos_y: int,
+        t: int,
+        goal_x: int,
+        goal_y: int,
+        g_cost: float,
+        is_closed: bool,
+        is_open: bool,
+        parent,
+    ):
         self.pos_x = pos_x
         self.pos_y = pos_y
         self.t = t

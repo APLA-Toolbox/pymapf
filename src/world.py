@@ -7,6 +7,7 @@ import random
 from termcolor import colored
 from .node import Node
 
+
 class World:
     def __init__(self, length: int, height: int, p_walls: float):
         self.length = length
@@ -19,22 +20,20 @@ class World:
 
         if not DIAGONALS:
             # up, left, down, right
-            self.delta = [[-1, 0, 1], 
-                          [0, -1, 1], 
-                          [1, 0, 1], 
-                          [0, 1, 1],
-                          [0, 0, 0]] 
+            self.delta = [[-1, 0, 1], [0, -1, 1], [1, 0, 1], [0, 1, 1], [0, 0, 0]]
         else:
-            # up, left, down, right 
+            # up, left, down, right
             # upleft, upright, downleft, downright
-            self.delta = [[-1, 0, 1], 
-                          [0, -1, 1], 
-                          [1, 0, 1], 
-                          [0, 1, 1],
-                          [-1, -1, sqrt(2)],
-                          [-1, 1, sqrt(2)],
-                          [1, -1, sqrt(2)],
-                          [1, 1, sqrt(2)]]
+            self.delta = [
+                [-1, 0, 1],
+                [0, -1, 1],
+                [1, 0, 1],
+                [0, 1, 1],
+                [-1, -1, sqrt(2)],
+                [-1, 1, sqrt(2)],
+                [1, -1, sqrt(2)],
+                [1, 1, sqrt(2)],
+            ]
 
     def add_path(self, path: List[Tuple[int]]):
         i = 0
@@ -50,21 +49,21 @@ class World:
         for rows in self.grid:
             for elem in rows:
                 if elem == 1:
-                    stdout.write(colored('█', 'red'))
+                    stdout.write(colored("█", "red"))
                 elif elem == 0:
-                    stdout.write(' ')
+                    stdout.write(" ")
                 elif elem == 2:
-                    stdout.write(colored('¤', 'blue'))
+                    stdout.write(colored("¤", "blue"))
                 elif elem == 3:
-                    stdout.write(colored('x', 'green'))
+                    stdout.write(colored("x", "green"))
                 elif elem == 4:
-                    stdout.write(colored('*', 'blue'))
+                    stdout.write(colored("*", "blue"))
                 elif elem == 5:
-                    stdout.write(colored('~', 'magenta'))
+                    stdout.write(colored("~", "magenta"))
                 elif elem == 6:
-                    stdout.write(colored('+', 'cyan'))
+                    stdout.write(colored("+", "cyan"))
                 else:
-                    stdout.write('o', 'yellow')
+                    stdout.write("o", "yellow")
             print()
 
     def get_random_available_position(self) -> Tuple[int]:
@@ -76,11 +75,11 @@ class World:
 
             if self.grid[random_row][random_col] != 1:
                 break
-            if i > self.length*self.height*100:
+            if i > self.length * self.height * 100:
                 print(colored("Couldn't find random available position.", "red"))
                 return None
-                
-        return((random_row, random_col))
+
+        return (random_row, random_col)
 
     def get_start_goal(self, pHeuristic) -> Tuple[Tuple[int]]:
         i = 0
@@ -92,23 +91,30 @@ class World:
         h = n.calculate_heuristic()
 
         # Set goal value
-        nTarget = Node(0, 0, -1, self.length-1, self.height-1, 0, False, False, None)
+        nTarget = Node(
+            0, 0, -1, self.length - 1, self.height - 1, 0, False, False, None
+        )
         hTarget = nTarget.calculate_heuristic()
 
-        while h < hTarget*pHeuristic:
+        while h < hTarget * pHeuristic:
             i += 1
             start = self.get_random_available_position()
             goal = self.get_random_available_position()
             n = Node(start[1], start[0], 0, goal[1], goal[0], 0, False, False, None)
             h = n.calculate_heuristic()
-            if i > 100*self.length*self.height:
-                print(colored("Couldn't find start and goal respecting the constraints.", "red"))
+            if i > 100 * self.length * self.height:
+                print(
+                    colored(
+                        "Couldn't find start and goal respecting the constraints.",
+                        "red",
+                    )
+                )
                 return None
         return start, goal
-                
+
     def change_grid(self, position: Tuple[int], value: int):
         self.grid[position[1]][position[0]] = value
-        
+
     def __generate_walls(self):
         for x in range(self.height):
             for y in range(self.length):
