@@ -1,2 +1,2 @@
 # pymapf
-A Python tool for Multi-Agent Pathfinding
+A Python tool for Multi-Agent Pathfinding (Cooperative A*)
