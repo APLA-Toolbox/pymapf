@@ -1,0 +1,137 @@
+import numpy as np
+from scipy.optimize import minimize, Bounds
+import time
+
+class NMPCAgent:
+    def __init__(self, id, start, goal, number_of_timesteps, nmpc_timestep, timestep, qc=5.0, kappa=4.0, radius=.5, vmax=2, vmin=.2, horizon_length=4):
+        # Initializations
+        self.id = id
+        self.start = start
+        self.goal = goal
+
+        # Consts from NMPC Class
+        self.number_of_timesteps = number_of_timesteps
+        self.nmpc_timestep = nmpc_timestep
+        self.timestep = timestep
+
+        # Agent Constraints
+        self.horizon_length = horizon_length
+        self.vmax = vmax
+        self.vmin = vmin
+        self.qc = qc
+        self.kappa = kappa
+        self.upper_bound = [(1/np.sqrt(2)) * self.vmax] * self.horizon_length * 2
+        self.lower_bound = [-(1/np.sqrt(2)) * self.vmax] * self.horizon_length * 2
+        self.radius = radius
+
+        # Current State
+        self.current_state = start
+        self.state_history = np.empty((4, self.number_of_timesteps))
+
+    def simulate_step(self, step, obstacles, other_agents):
+        # Predict Obstacles and Agents Positions in the Future
+        obstacle_prediction = self.__predict_obstacle_positions(obstacles[:, step, :], other_agents)
+        xref = self.__compute_xref()
+        vel, _ = self.__compute_velocity(self.current_state, obstacle_prediction, xref)
+        self.current_state = self.__update_state(self.current_state, vel)
+        self.state_history[:2, step] = self.current_state
+        return self.state_history, vel, self.current_state
+
+
+    def __compute_velocity(self, robot_state, obstacle_predictions, xref):
+        u0 = np.random.rand(2 * self.horizon_length)
+
+        def cost_fn(u): return self.__total_cost(
+            u, robot_state, obstacle_predictions, xref)
+
+        bounds = Bounds(self.lower_bound, self.upper_bound)
+
+        res = minimize(cost_fn, u0, method='SLSQP', bounds=bounds)
+        velocity = res.x[:2]
+        return velocity, res.x
+
+
+    def __compute_xref(self):
+        dir_vec = (self.goal - self.current_state)
+        norm = np.linalg.norm(dir_vec)
+        if norm < 0.1:
+            new_goal = self.current_state
+        else:
+            dir_vec = dir_vec / norm
+            new_goal = self.current_state + dir_vec * self.vmax * self.nmpc_timestep * self.horizon_length
+        return np.linspace(self.current_state, new_goal, self.horizon_length).reshape((2*self.horizon_length))
+
+
+    def __total_cost(self, u, robot_state, obstacle_predictions, xref):
+        x_robot = self.__update_state(robot_state, u)
+        c1 = self.__tracking_cost(x_robot, xref)
+        c2 = self.__total_collision_cost(x_robot, obstacle_predictions)
+        total = c1 + c2
+        return total
+
+
+    def __tracking_cost(self, x, xref):
+        return np.linalg.norm(x-xref)
+
+
+    def __total_collision_cost(self, robot, obstacles):
+        total_cost = 0
+        for i in range(self.horizon_length):
+            for j in range(len(obstacles)):
+                obstacle = obstacles[j]
+                rob = robot[2 * i: 2 * i + 2]
+                obs = obstacle[2 * i: 2 * i + 2]
+                total_cost += self.__collision_cost(rob, obs)
+        return total_cost
+
+
+    def __collision_cost(self, x0, x1):
+        """
+        Cost of collision between two robot_state
+        """
+        d = np.linalg.norm(x0 - x1)
+        cost = self.qc / (1 + np.exp(self.kappa * (d - 2 * self.radius)))
+        return cost
+
+
+    def __predict_obstacle_positions(self, obstacles, other_agents):
+        obstacle_predictions = []
+        for i in range(np.shape(obstacles)[1]):
+            obstacle = obstacles[:, i]
+            obstacle_position = obstacle[:2]
+            obstacle_vel = obstacle[2:]
+            u = np.vstack([np.eye(2)] * self.horizon_length) @ obstacle_vel
+            obstacle_prediction = self.__update_state(obstacle_position, u)
+            obstacle_predictions.append(obstacle_prediction)
+
+        for agent in other_agents:
+            agent_position = agent[:2]
+            agent_vel = agent[2:]
+            u = np.vstack([np.eye(2)] * self.horizon_length) @ agent_vel
+            obstacle_agent_prediction = self.__update_state(agent_position, u)
+            obstacle_predictions.append(obstacle_agent_prediction)
+
+        return obstacle_predictions
+
+    def __update_state(self, x0, u):
+        """
+        Computes the states of the system after applying a sequence of control signals u on
+        initial state x0
+        """
+        N = int(len(u) / 2)
+        lower_triangular_ones_matrix = np.tril(np.ones((N, N)))
+        kron = np.kron(lower_triangular_ones_matrix, np.eye(2))
+
+        new_state = np.vstack([np.eye(2)] * int(N)) @ x0 + kron @ u * self.nmpc_timestep
+
+        return new_state
+
+    def __hash__(self):
+        h = str(self.id) + str(self.start) + str(self.goal) + str(self.radius)
+        return h
+
+    def __eq__(self, other):
+        return self.id == other.id
+
+    def __str__(self):
+        return "=======AGENT=======\nID = %s\nSTART_POSITION = %s\nGOAL_POSITION = %s\nRADIUS = %s\nVMIN = %s\nVMAX = %s\nHORIZON_LENGTH = %s\nQC = %s\nKappa = %s\n===================" % (str(self.id), str(self.start), str(self.goal), str(self.radius), str(self.vmin), str(self.vmax), str(self.horizon_length), str(self.qc), str(self.kappa))
