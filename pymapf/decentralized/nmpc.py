@@ -9,6 +9,7 @@ import numpy as np
 import matplotlib as mpl
 from random import random
 import os
+
 if "DISPLAY" not in os.environ:
     mpl.use("agg")
 else:
@@ -19,11 +20,14 @@ from matplotlib.patches import Circle
 import coloredlogs
 import logging
 
+
 class MultiAgentNMPC:
-    def __init__(self, simulation_time=8.0, timestep=.1, nmpc_timestep=.3, log_level="WARNING"):
+    def __init__(
+        self, simulation_time=8.0, timestep=0.1, nmpc_timestep=0.3, log_level="WARNING"
+    ):
         self.simulation_time = simulation_time
         self.timestep = timestep
-        self.number_of_timesteps = int(simulation_time/timestep)
+        self.number_of_timesteps = int(simulation_time / timestep)
         self.nmpc_timestep = nmpc_timestep
 
         # Agents
@@ -37,18 +41,49 @@ class MultiAgentNMPC:
         self.simulation_complete = False
         self.__init_logger(log_level)
         coloredlogs.install(level=log_level)
-    
-    def register_agent(self, id, start, goal, qc=5.0, kappa=4.0, radius=.5, vmax=2, vmin=.2, horizon_length=4):
+
+    def register_agent(
+        self,
+        id,
+        start,
+        goal,
+        qc=5.0,
+        kappa=4.0,
+        radius=0.5,
+        vmax=2,
+        vmin=0.2,
+        horizon_length=4,
+    ):
         if id in self.agents:
             logging.warning("Failed to register agent: ID has already been registered.")
             return
-        agent = NMPCAgent(id, start, goal, self.number_of_timesteps, self.nmpc_timestep, self.timestep, qc, kappa, radius, vmax, vmin, horizon_length)
+        agent = NMPCAgent(
+            id,
+            start,
+            goal,
+            self.number_of_timesteps,
+            self.nmpc_timestep,
+            self.timestep,
+            qc,
+            kappa,
+            radius,
+            vmax,
+            vmin,
+            horizon_length,
+        )
         self.agents[id] = agent
-    
+
     def register_obstacle(self, velocity, theta, initial_position):
-        obstacle = Obstacle(False, velocity, theta, initial_position, self.simulation_time, self.number_of_timesteps)
+        obstacle = Obstacle(
+            False,
+            velocity,
+            theta,
+            initial_position,
+            self.simulation_time,
+            self.number_of_timesteps,
+        )
         self.obstacles_objects.append(obstacle)
-        if not hasattr(self, 'obstacles'):
+        if not hasattr(self, "obstacles"):
             self.obstacles = obstacle.state
         else:
             self.obstacles = np.dstack((self.obstacles, obstacle.state))
@@ -61,7 +96,9 @@ class MultiAgentNMPC:
         for i in range(self.number_of_timesteps):
             other_agents = []
             for key, agent in self.agents.items():
-                state_history, vel, state = agent.simulate_step(i, obstacles, other_agents)
+                state_history, vel, state = agent.simulate_step(
+                    i, obstacles, other_agents
+                )
                 agent_as_obstacle = self.__agent_to_obstacle(vel, state)
                 other_agents.append(agent_as_obstacle)
                 self.global_state_history[key] = state_history
@@ -71,12 +108,12 @@ class MultiAgentNMPC:
         if not self.simulation_complete:
             logging.warning("Failed to visualize: simulation must be complete")
             return
-        
+
         self.__plot(saved_file, map_length, map_height)
 
     def __agent_to_obstacle(self, velocity, pos):
         return np.concatenate((pos, velocity))
-                
+
     def __init_logger(self, log_level):
         import os
 
@@ -88,26 +125,43 @@ class MultiAgentNMPC:
             filemode="w",
             level=log_level,
         )
-    
+
     def __plot(self, saved_file, map_length, map_height):
         fig = plt.figure()
-        ax = fig.add_subplot(111, autoscale_on=False, xlim=(0, map_length), ylim=(0, map_height))
-        ax.set_aspect('equal')
+        ax = fig.add_subplot(
+            111, autoscale_on=False, xlim=(0, map_length), ylim=(0, map_height)
+        )
+        ax.set_aspect("equal")
         ax.grid()
 
         lines = []
         agents_list = []
         for key, agent in self.agents.items():
             rgb = [random(), random(), random()]
-            agents_list.append(Circle((self.global_state_history[key][0, 0], self.global_state_history[key][0, 1]),
-                                agent.radius, facecolor=rgb, edgecolor='black'))
-            line, = ax.plot([], [], c=rgb)
+            agents_list.append(
+                Circle(
+                    (
+                        self.global_state_history[key][0, 0],
+                        self.global_state_history[key][0, 1],
+                    ),
+                    agent.radius,
+                    facecolor=rgb,
+                    edgecolor="black",
+                )
+            )
+            (line,) = ax.plot([], [], c=rgb)
             lines.append(line)
         obstacle_list = []
         try:
             for obstacle in range(np.shape(self.obstacles)[2]):
-                obstacle_list.append(Circle((0, 0), self.obstacles_objects[obstacle].radius,
-                                facecolor='red', edgecolor='black'))
+                obstacle_list.append(
+                    Circle(
+                        (0, 0),
+                        self.obstacles_objects[obstacle].radius,
+                        facecolor="red",
+                        edgecolor="black",
+                    )
+                )
         except:
             pass
 
@@ -118,21 +172,30 @@ class MultiAgentNMPC:
                 lines.append(line)
             for obstacle in obstacle_list:
                 ax.add_patch(obstacle)
-            
+
             return agents_list + lines + obstacle_list
 
         def animate(i):
             k = 0
             for key, _ in self.agents.items():
-                agents_list[k].center = (self.global_state_history[key][0, i], self.global_state_history[key][1, i])
-                lines[k].set_data(self.global_state_history[key][0, :i], self.global_state_history[key][1, :i])
+                agents_list[k].center = (
+                    self.global_state_history[key][0, i],
+                    self.global_state_history[key][1, i],
+                )
+                lines[k].set_data(
+                    self.global_state_history[key][0, :i],
+                    self.global_state_history[key][1, :i],
+                )
                 k += 1
             for j in range(len(obstacle_list)):
-                obstacle_list[j].center = (self.obstacles[0, i, j], self.obstacles[1, i, j])
+                obstacle_list[j].center = (
+                    self.obstacles[0, i, j],
+                    self.obstacles[1, i, j],
+                )
             return agents_list + lines + obstacle_list
 
         init()
-        step = (self.simulation_time / self.number_of_timesteps)
+        step = self.simulation_time / self.number_of_timesteps
         for i in range(self.number_of_timesteps):
             animate(i)
             plt.pause(step)
@@ -142,9 +205,12 @@ class MultiAgentNMPC:
             return
 
         ani = animation.FuncAnimation(
-            fig, animate, np.arange(1, self.number_of_timesteps), interval=200,
-            blit=True, init_func=init)
+            fig,
+            animate,
+            np.arange(1, self.number_of_timesteps),
+            interval=200,
+            blit=True,
+            init_func=init,
+        )
 
-        ani.save(saved_file+str(".gif"), writer='ffmpeg', fps=10)
-
-
+        ani.save(saved_file + str(".gif"), writer="ffmpeg", fps=10)
