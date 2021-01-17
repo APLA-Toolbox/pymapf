@@ -6,8 +6,8 @@ class NMPCAgent:
     def __init__(self, id, start, goal, number_of_timesteps, nmpc_timestep, timestep, qc=5.0, kappa=4.0, radius=.5, vmax=2, vmin=.2, horizon_length=4):
         # Initializations
         self.id = id
-        self.start = start
-        self.goal = goal
+        self.start = np.array([start.x, start.y])
+        self.goal = np.array([goal.x, goal.y])
 
         # Consts from NMPC Class
         self.number_of_timesteps = number_of_timesteps
@@ -25,12 +25,12 @@ class NMPCAgent:
         self.radius = radius
 
         # Current State
-        self.current_state = start
+        self.current_state = self.start
         self.state_history = np.empty((4, self.number_of_timesteps))
 
     def simulate_step(self, step, obstacles, other_agents):
         # Predict Obstacles and Agents Positions in the Future
-        obstacle_prediction = self.__predict_obstacle_positions(obstacles[:, step, :], other_agents)
+        obstacle_prediction = self.__predict_obstacle_positions(obstacles, step, other_agents)
         xref = self.__compute_xref()
         vel, _ = self.__compute_velocity(self.current_state, obstacle_prediction, xref)
         self.current_state = self.__update_state(self.current_state, vel)
@@ -94,15 +94,19 @@ class NMPCAgent:
         return cost
 
 
-    def __predict_obstacle_positions(self, obstacles, other_agents):
+    def __predict_obstacle_positions(self, obstacles, step, other_agents):
         obstacle_predictions = []
-        for i in range(np.shape(obstacles)[1]):
-            obstacle = obstacles[:, i]
-            obstacle_position = obstacle[:2]
-            obstacle_vel = obstacle[2:]
-            u = np.vstack([np.eye(2)] * self.horizon_length) @ obstacle_vel
-            obstacle_prediction = self.__update_state(obstacle_position, u)
-            obstacle_predictions.append(obstacle_prediction)
+        try:
+            obstacles[:, step, :]
+            for i in range(np.shape(obstacles)[1]):
+                obstacle = obstacles[:, i]
+                obstacle_position = obstacle[:2]
+                obstacle_vel = obstacle[2:]
+                u = np.vstack([np.eye(2)] * self.horizon_length) @ obstacle_vel
+                obstacle_prediction = self.__update_state(obstacle_position, u)
+                obstacle_predictions.append(obstacle_prediction)
+        except:
+            pass
 
         for agent in other_agents:
             agent_position = agent[:2]

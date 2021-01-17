@@ -4,8 +4,8 @@ class VelocityAgent:
     def __init__(self, id, start, goal, number_of_timesteps, timestep, radius=.5, vmax=2, vmin=.2):
         # Agent Initialization
         self.id = id
-        self.start = start
-        self.goal = goal
+        self.start = np.array([start.x, start.y])
+        self.goal = np.array([goal.x, goal.y])
 
         # MAPF Velocity Obstacles Consts
         self.number_of_timesteps = number_of_timesteps
@@ -17,14 +17,14 @@ class VelocityAgent:
         self.vmin = vmin
 
         # Current State
-        self.current_state = start
+        self.current_state = self.start
         self.state_history = np.empty((4, self.number_of_timesteps))
 
 
     def simulate_step(self, step, obstacles, other_agents):
         # Predict Obstacles and Agents Positions in the Future
         v_desired = self.__compute_desired_velocity(self.current_state[:2], self.goal)
-        control_vel = self.__compute_velocity(self.current_state, obstacles[:, step, :], v_desired, other_agents)
+        control_vel = self.__compute_velocity(self.current_state, obstacles, step, v_desired, other_agents)
         self.current_state = self.__update_state(self.current_state, control_vel)
         self.state_history[:4, step] = self.current_state
         return self.state_history, self.current_state, control_vel
@@ -39,14 +39,18 @@ class VelocityAgent:
         desired_vel = self.vmax * disp_vec
         return desired_vel
 
-    def __compute_velocity(self, state, obstacles, v_desired, other_agents):
-        pos_agent = state[:2]
-        # Compute the constraints
-        # for each velocity obstacles
-        number_of_obstacles = np.shape(obstacles)[1]
+    def __compute_velocity(self, state, obstacles, step, v_desired, other_agents):
+        try: 
+            obstacles = obstacles[:, step, :]
+            pos_agent = state[:2]
+            number_of_obstacles = np.shape(obstacles)[1]
+        
+        except:
+            pos_agent = state[:2]
+            number_of_obstacles = 0
+        
         a = np.empty(((number_of_obstacles + len(other_agents)) * 2, 2))
         b = np.empty(((number_of_obstacles + len(other_agents)) * 2))
-
         # Handle none agents Obstacles
         for i in range(number_of_obstacles):
             obstacle = obstacles[:, i]
@@ -76,7 +80,7 @@ class VelocityAgent:
         k = number_of_obstacles
         for obs_agent in other_agents:
             obs_agent_position = obs_agent[:2]
-            # obs_agent_velocity = obs_agent[2:]
+            obs_agent_velocity = obs_agent[2:]
             dispBA = pos_agent - obs_agent_position
             distBA = np.linalg.norm(dispBA)
             thetaBA = np.arctan2(dispBA[1], dispBA[0])
@@ -89,7 +93,7 @@ class VelocityAgent:
             phi_right = thetaBA - phi_obst
 
             # VO
-            translation = vel_obs
+            translation = obs_agent_velocity
             a_temp, b_temp = self.__create_constraints(translation, phi_left, "left")
             a[k*2, :] = a_temp
             b[k*2] = b_temp
@@ -105,15 +109,18 @@ class VelocityAgent:
         vx_sample = (vv * np.cos(thth)).flatten()
         vy_sample = (vv * np.sin(thth)).flatten()
         v_sample = np.stack((vx_sample, vy_sample))
-        v_satisfying_constraints = self.__check_constraints(v_sample, a, b)
-        
-        # Objective function
-        size = np.shape(v_satisfying_constraints)[1]
-        diffs = v_satisfying_constraints - \
-            ((v_desired).reshape(2, 1) @ np.ones(size).reshape(1, size))
-        norm = np.linalg.norm(diffs, axis=0)
-        min_index = np.where(norm == np.amin(norm))[0][0]
-        cmd_vel = (v_satisfying_constraints[:, min_index])
+
+        try:
+            v_satisfying_constraints = self.__check_constraints(v_sample, a, b)
+            # Objective function
+            size = np.shape(v_satisfying_constraints)[1]
+            diffs = v_satisfying_constraints - \
+                ((v_desired).reshape(2, 1) @ np.ones(size).reshape(1, size))
+            norm = np.linalg.norm(diffs, axis=0)
+            min_index = np.where(norm == np.amin(norm))[0][0]
+            cmd_vel = (v_satisfying_constraints[:, min_index])
+        except:
+            cmd_vel = np.array([0, 0])
         return cmd_vel
 
 
