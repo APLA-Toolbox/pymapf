@@ -14,6 +14,10 @@ parsers:
       method: no
       macro: no
 
+ignore:
+  - "setup.py"
+  - scripts/*
+
 comment:
   layout: "reach,diff,flags,files,footer"
   behavior: default

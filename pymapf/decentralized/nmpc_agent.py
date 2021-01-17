@@ -42,9 +42,11 @@ class NMPCAgent:
         # Current State
         self.current_state = self.start
         self.state_history = np.empty((4, self.number_of_timesteps))
+        self.total_computation_runtime = 0
 
     def simulate_step(self, step, obstacles, other_agents):
         # Predict Obstacles and Agents Positions in the Future
+        stamp = time.time()
         obstacle_prediction = self.__predict_obstacle_positions(
             obstacles, step, other_agents
         )
@@ -52,6 +54,7 @@ class NMPCAgent:
         vel, _ = self.__compute_velocity(self.current_state, obstacle_prediction, xref)
         self.current_state = self.__update_state(self.current_state, vel)
         self.state_history[:2, step] = self.current_state
+        self.total_computation_runtime += time.time() - stamp
         return self.state_history, vel, self.current_state
 
     def __compute_velocity(self, robot_state, obstacle_predictions, xref):
