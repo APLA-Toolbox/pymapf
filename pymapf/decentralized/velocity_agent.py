@@ -1,6 +1,7 @@
 import numpy as np
 import time
 
+
 class VelocityAgent:
     def __init__(
         self,
