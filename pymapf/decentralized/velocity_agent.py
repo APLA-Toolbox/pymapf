@@ -63,6 +63,7 @@ class VelocityAgent:
 
         a = np.empty(((number_of_obstacles + len(other_agents)) * 2, 2))
         b = np.empty(((number_of_obstacles + len(other_agents)) * 2))
+
         # Handle none agents Obstacles
         for i in range(number_of_obstacles):
             obstacle = obstacles[:, i]
@@ -91,6 +92,7 @@ class VelocityAgent:
         # Handle other agents
         k = number_of_obstacles
         for obs_agent in other_agents:
+            print(obs_agent)
             obs_agent_position = obs_agent[:2]
             obs_agent_velocity = obs_agent[2:]
             dispBA = pos_agent - obs_agent_position
