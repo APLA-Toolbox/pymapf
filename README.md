@@ -1,10 +1,10 @@
-![tests](https://github.com/APLA-Toolbox/PythonPDDL/workflows/tests/badge.svg?branch=main)
-![build](https://github.com/APLA-Toolbox/PythonPDDL/workflows/build/badge.svg?branch=main)
-[![codecov](https://codecov.io/gh/APLA-Toolbox/PythonPDDL/branch/main/graph/badge.svg?token=63GHA9JUND)](https://codecov.io/gh/APLA-Toolbox/PythonPDDL)
-[![CodeFactor](https://www.codefactor.io/repository/github/apla-toolbox/pythonpddl/badge)](https://www.codefactor.io/repository/github/apla-toolbox/pythonpddl)
-[![Percentage of issues still open](http://isitmaintained.com/badge/open/APLA-Toolbox/PythonPDDL.svg)](http://isitmaintained.com/project/APLA-Toolbox/PythonPDDL "Percentage of issues still open")
-[![GitHub license](https://img.shields.io/github/license/Apla-Toolbox/PythonPDDL.svg)](https://github.com/Apla-Toolbox/PythonPDDL/blob/master/LICENSE)
-[![GitHub contributors](https://img.shields.io/github/contributors/Apla-Toolbox/PythonPDDL.svg)](https://GitHub.com/Apla-Toolbox/PythonPDDL/graphs/contributors/)
+![tests](https://github.com/APLA-Toolbox/pymapf/workflows/tests/badge.svg?branch=main)
+![build](https://github.com/APLA-Toolbox/pymapf/workflows/build/badge.svg?branch=main)
+[![codecov](https://codecov.io/gh/APLA-Toolbox/pymapf/branch/main/graph/badge.svg?token=63GHA9JUND)](https://codecov.io/gh/APLA-Toolbox/pymapf)
+[![CodeFactor](https://www.codefactor.io/repository/github/apla-toolbox/pymapf/badge)](https://www.codefactor.io/repository/github/apla-toolbox/pymapf)
+[![Percentage of issues still open](http://isitmaintained.com/badge/open/APLA-Toolbox/pymapf.svg)](http://isitmaintained.com/project/APLA-Toolbox/pymapf "Percentage of issues still open")
+[![GitHub license](https://img.shields.io/github/license/Apla-Toolbox/pymapf.svg)](https://github.com/Apla-Toolbox/pymapf/blob/master/LICENSE)
+[![GitHub contributors](https://img.shields.io/github/contributors/Apla-Toolbox/pymapf.svg)](https://GitHub.com/Apla-Toolbox/pymapf/graphs/contributors/)
 
 # PyMAPF
 A Python toolbox for Multi-Agents Planning (Centralized and Decentralized)
@@ -75,3 +75,12 @@ sim.register_agent("c3po", Position(10, 7), Position(5, 0))
 sim.run_simulation()
 sim.visualize("filename_test_2", 10, 10)
 ```
+
+## Contribute
+
+Open an issue to state clearly the contribution you want to make. Upon aproval send in a PR with the Issue referenced. (Implement Issue #No / Fix Issue #No).
+
+## Maintainers
+
+- Erwin Lejeune
+- Sampreet Sarkar
