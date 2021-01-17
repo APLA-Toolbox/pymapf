@@ -1,3 +1,9 @@
+# -*- coding: utf-8 -*-
+
+import sys
+from os import path
+sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
+
 from pymapf.decentralized.nmpc import MultiAgentNMPC
 from pymapf.decentralized.position import Position
 

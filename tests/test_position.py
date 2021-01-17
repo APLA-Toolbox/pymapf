@@ -1,3 +1,9 @@
+# -*- coding: utf-8 -*-
+
+import sys
+from os import path
+sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
+
 from pymapf.decentralized.position import Position
 
 def test_position():
@@ -6,4 +12,4 @@ def test_position():
 
 def test_position_str():
     pos = Position(4, 5)
-    assert str(pos) == "[4, 5]"
+    assert str(pos) == "[4 ; 5]"
