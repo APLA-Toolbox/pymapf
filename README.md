@@ -1,5 +1,4 @@
 ![tests](https://github.com/APLA-Toolbox/pymapf/workflows/tests/badge.svg?branch=main)
-![build](https://github.com/APLA-Toolbox/pymapf/workflows/build/badge.svg?branch=main)
 [![codecov](https://codecov.io/gh/APLA-Toolbox/pymapf/branch/main/graph/badge.svg?token=63GHA9JUND)](https://codecov.io/gh/APLA-Toolbox/pymapf)
 [![CodeFactor](https://www.codefactor.io/repository/github/apla-toolbox/pymapf/badge)](https://www.codefactor.io/repository/github/apla-toolbox/pymapf)
 [![Percentage of issues still open](http://isitmaintained.com/badge/open/APLA-Toolbox/pymapf.svg)](http://isitmaintained.com/project/APLA-Toolbox/pymapf "Percentage of issues still open")
