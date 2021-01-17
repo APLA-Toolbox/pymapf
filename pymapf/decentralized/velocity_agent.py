@@ -1,7 +1,18 @@
 import numpy as np
 
+
 class VelocityAgent:
-    def __init__(self, id, start, goal, number_of_timesteps, timestep, radius=.5, vmax=2, vmin=.2):
+    def __init__(
+        self,
+        id,
+        start,
+        goal,
+        number_of_timesteps,
+        timestep,
+        radius=0.5,
+        vmax=2,
+        vmin=0.2,
+    ):
         # Agent Initialization
         self.id = id
         self.start = np.array([start.x, start.y])
@@ -20,11 +31,12 @@ class VelocityAgent:
         self.current_state = self.start
         self.state_history = np.empty((4, self.number_of_timesteps))
 
-
     def simulate_step(self, step, obstacles, other_agents):
         # Predict Obstacles and Agents Positions in the Future
         v_desired = self.__compute_desired_velocity(self.current_state[:2], self.goal)
-        control_vel = self.__compute_velocity(self.current_state, obstacles, step, v_desired, other_agents)
+        control_vel = self.__compute_velocity(
+            self.current_state, obstacles, step, v_desired, other_agents
+        )
         self.current_state = self.__update_state(self.current_state, control_vel)
         self.state_history[:4, step] = self.current_state
         return self.state_history, self.current_state, control_vel
@@ -40,15 +52,15 @@ class VelocityAgent:
         return desired_vel
 
     def __compute_velocity(self, state, obstacles, step, v_desired, other_agents):
-        try: 
+        try:
             obstacles = obstacles[:, step, :]
             pos_agent = state[:2]
             number_of_obstacles = np.shape(obstacles)[1]
-        
+
         except:
             pos_agent = state[:2]
             number_of_obstacles = 0
-        
+
         a = np.empty(((number_of_obstacles + len(other_agents)) * 2, 2))
         b = np.empty(((number_of_obstacles + len(other_agents)) * 2))
         # Handle none agents Obstacles
@@ -62,7 +74,7 @@ class VelocityAgent:
 
             if 2.2 * self.radius > distBA:
                 distBA = 2.2 * self.radius
-                
+
             phi_obst = np.arcsin(2.2 * self.radius / distBA)
             phi_left = thetaBA + phi_obst
             phi_right = thetaBA - phi_obst
@@ -70,12 +82,12 @@ class VelocityAgent:
             # VO
             translation = vel_obs
             a_temp, b_temp = self.__create_constraints(translation, phi_left, "left")
-            a[i*2, :] = a_temp
-            b[i*2] = b_temp
+            a[i * 2, :] = a_temp
+            b[i * 2] = b_temp
             a_temp, b_temp = self.__create_constraints(translation, phi_right, "right")
-            a[i*2 + 1, :] = a_temp
-            b[i*2 + 1] = b_temp
-        
+            a[i * 2 + 1, :] = a_temp
+            b[i * 2 + 1] = b_temp
+
         # Handle other agents
         k = number_of_obstacles
         for obs_agent in other_agents:
@@ -87,7 +99,7 @@ class VelocityAgent:
 
             if 2.2 * self.radius > distBA:
                 distBA = 2.2 * self.radius
-                
+
             phi_obst = np.arcsin(2.2 * self.radius / distBA)
             phi_left = thetaBA + phi_obst
             phi_right = thetaBA - phi_obst
@@ -95,15 +107,15 @@ class VelocityAgent:
             # VO
             translation = obs_agent_velocity
             a_temp, b_temp = self.__create_constraints(translation, phi_left, "left")
-            a[k*2, :] = a_temp
-            b[k*2] = b_temp
+            a[k * 2, :] = a_temp
+            b[k * 2] = b_temp
             a_temp, b_temp = self.__create_constraints(translation, phi_right, "right")
-            a[k*2 + 1, :] = a_temp
-            b[k*2 + 1] = b_temp
+            a[k * 2 + 1, :] = a_temp
+            b[k * 2 + 1] = b_temp
             k += 1
 
         # Create search-space
-        th = np.linspace(0, 2*np.pi, 20)
+        th = np.linspace(0, 2 * np.pi, 20)
         vel = np.linspace(0, self.vmax, 5)
         vv, thth = np.meshgrid(vel, th)
         vx_sample = (vv * np.cos(thth)).flatten()
@@ -114,24 +126,25 @@ class VelocityAgent:
             v_satisfying_constraints = self.__check_constraints(v_sample, a, b)
             # Objective function
             size = np.shape(v_satisfying_constraints)[1]
-            diffs = v_satisfying_constraints - \
-                ((v_desired).reshape(2, 1) @ np.ones(size).reshape(1, size))
+            diffs = v_satisfying_constraints - (
+                (v_desired).reshape(2, 1) @ np.ones(size).reshape(1, size)
+            )
             norm = np.linalg.norm(diffs, axis=0)
             min_index = np.where(norm == np.amin(norm))[0][0]
-            cmd_vel = (v_satisfying_constraints[:, min_index])
+            cmd_vel = v_satisfying_constraints[:, min_index]
         except:
             cmd_vel = np.array([0, 0])
         return cmd_vel
 
-
     def __check_constraints(self, v_sample, Amat, bvec):
         length = np.shape(bvec)[0]
 
-        for i in range(int(length/2)):
-            v_sample = self.__check_inside(v_sample, Amat[2*i:2*i+2, :], bvec[2*i:2*i+2])
+        for i in range(int(length / 2)):
+            v_sample = self.__check_inside(
+                v_sample, Amat[2 * i : 2 * i + 2, :], bvec[2 * i : 2 * i + 2]
+            )
 
         return v_sample
-
 
     def __check_inside(self, v, Amat, bvec):
         v_out = []
@@ -139,7 +152,6 @@ class VelocityAgent:
             if not ((Amat @ v[:, i] < bvec).all()):
                 v_out.append(v[:, i])
         return np.array(v_out).T
-
 
     def __create_constraints(self, translation, angle, side):
         # create line
@@ -156,12 +168,10 @@ class VelocityAgent:
 
         return A, b
 
-
     def __translate_line(self, line, translation):
         matrix = np.eye(3)
         matrix[2, :2] = -translation[:2]
         return matrix @ line
-
 
     def __update_state(self, x, v):
         new_state = np.empty((4))

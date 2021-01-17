@@ -1,13 +1,23 @@
 import numpy as np
 
+
 class Obstacle:
-    def __init__(self, is_agent, velocity, theta, initial_position, simulation_time, number_of_timesteps, radius=.5):
+    def __init__(
+        self,
+        is_agent,
+        velocity,
+        theta,
+        initial_position,
+        simulation_time,
+        number_of_timesteps,
+        radius=0.5,
+    ):
         self.is_agent = is_agent
         self.velocity = velocity
         self.initial_position = np.array([initial_position.x, initial_position.y])
         self.theta = theta
         self.radius = radius
-        
+
         # Creates an obstacle starting at initial position and moving at velocity in theta direction
         t = np.linspace(0, simulation_time, number_of_timesteps)
         theta = self.theta * np.ones(np.shape(t))
