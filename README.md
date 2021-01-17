@@ -42,8 +42,8 @@ A Python toolbox for Multi-Agents Planning (Centralized and Decentralized)
 ### Scripts
 
 Launch hub switch scripts using:
-    - `python3 scripts/switch_positions_nmpc.py`
-    - `python3 scripts/switch_positions_vel_obstacles.py` (broken)
+- `python3 scripts/switch_positions_nmpc.py`
+- `python3 scripts/switch_positions_vel_obstacles.py` (broken)
 
 More to come...
 
