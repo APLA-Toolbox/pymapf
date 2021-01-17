@@ -1,5 +1,5 @@
 import numpy as np
-
+import time
 
 class VelocityAgent:
     def __init__(
@@ -30,15 +30,18 @@ class VelocityAgent:
         # Current State
         self.current_state = self.start
         self.state_history = np.empty((4, self.number_of_timesteps))
+        self.total_computation_runtime = 0
 
     def simulate_step(self, step, obstacles, other_agents):
         # Predict Obstacles and Agents Positions in the Future
+        stamp = time.time()
         v_desired = self.__compute_desired_velocity(self.current_state[:2], self.goal)
         control_vel = self.__compute_velocity(
             self.current_state, obstacles, step, v_desired, other_agents
         )
         self.current_state = self.__update_state(self.current_state, control_vel)
         self.state_history[:4, step] = self.current_state
+        self.total_computation_runtime += time.time() - stamp
         return self.state_history, self.current_state, control_vel
 
     def __compute_desired_velocity(self, current_pos, goal_pos):
