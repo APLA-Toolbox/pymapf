@@ -1,0 +1,28 @@
+name: format
+on:
+  push:
+    branches: [main]
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          ref: ${{ github.head_ref }}
+      - uses: actions/checkout@v2
+      - name: Set up Python 3.7
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.7
+      - name: Install formatter dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install black
+      - name: Format with black
+        run: |
+          black .
+      - name: Commit changes
+        uses: stefanzweifel/git-auto-commit-action@v4.8.0
+        with:
+          commit_message: Apply formatting changes
+          branch: main

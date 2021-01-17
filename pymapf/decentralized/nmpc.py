@@ -54,7 +54,10 @@ class MultiAgentNMPC:
             self.obstacles = np.dstack((self.obstacles, obstacle.state))
 
     def run_simulation(self):
-        obstacles = self.obstacles
+        try:
+            obstacles = self.obstacles
+        except:
+            obstacles = []
         for i in range(self.number_of_timesteps):
             other_agents = []
             for key, agent in self.agents.items():
@@ -64,12 +67,12 @@ class MultiAgentNMPC:
                 self.global_state_history[key] = state_history
         self.simulation_complete = True
 
-    def visualize(self, saved_file):
+    def visualize(self, saved_file, map_length, map_height):
         if not self.simulation_complete:
             logging.warning("Failed to visualize: simulation must be complete")
             return
         
-        self.__plot(saved_file)
+        self.__plot(saved_file, map_length, map_height)
 
     def __agent_to_obstacle(self, velocity, pos):
         return np.concatenate((pos, velocity))
@@ -86,9 +89,9 @@ class MultiAgentNMPC:
             level=log_level,
         )
     
-    def __plot(self, saved_file):
+    def __plot(self, saved_file, map_length, map_height):
         fig = plt.figure()
-        ax = fig.add_subplot(111, autoscale_on=False, xlim=(0, 10), ylim=(0, 10))
+        ax = fig.add_subplot(111, autoscale_on=False, xlim=(0, map_length), ylim=(0, map_height))
         ax.set_aspect('equal')
         ax.grid()
 
@@ -101,9 +104,12 @@ class MultiAgentNMPC:
             line, = ax.plot([], [], c=rgb)
             lines.append(line)
         obstacle_list = []
-        for obstacle in range(np.shape(self.obstacles)[2]):
-            obstacle_list.append(Circle((0, 0), self.obstacles_objects[obstacle].radius,
-                            facecolor='red', edgecolor='black'))
+        try:
+            for obstacle in range(np.shape(self.obstacles)[2]):
+                obstacle_list.append(Circle((0, 0), self.obstacles_objects[obstacle].radius,
+                                facecolor='red', edgecolor='black'))
+        except:
+            pass
 
         def init():
             for agent in agents_list:

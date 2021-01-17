@@ -4,7 +4,7 @@ class Obstacle:
     def __init__(self, is_agent, velocity, theta, initial_position, simulation_time, number_of_timesteps, radius=.5):
         self.is_agent = is_agent
         self.velocity = velocity
-        self.initial_position = initial_position
+        self.initial_position = np.array([initial_position.x, initial_position.y])
         self.theta = theta
         self.radius = radius
         
