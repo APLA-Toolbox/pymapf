@@ -16,6 +16,7 @@ else:
     mpl.use("TkAgg")
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
+
 # import threading
 from matplotlib.patches import Circle
 import coloredlogs
@@ -100,9 +101,7 @@ class MultiAgentVelocityObstacle:
         # except:
         #     pass
         # other_agents_lst = list(other_agents.values())
-        state_history, vel, state = agent.simulate_step(
-                    i, obstacles, other_agents_lst
-                )
+        state_history, vel, state = agent.simulate_step(i, obstacles, other_agents_lst)
         agent_as_obstacle = self.__agent_to_obstacle(vel, state)
         # self.other_agents[key] = agent_as_obstacle
         self.global_state_history[key] = state_history
