@@ -65,5 +65,6 @@ sim.register_agent("20", Position(5, 20), Position(15, 0), vmin=0)
 sim.register_agent("21", Position(0, 20), Position(20, 0), vmin=0)
 stamp = time.time()
 sim.run_simulation()
-runtimes.append((time.time() - stamp, 32))
+runtimes.append((time.time() - stamp, 21))
 
+print(runtimes)

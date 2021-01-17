@@ -16,6 +16,7 @@ else:
     mpl.use("TkAgg")
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
+# import threading
 from matplotlib.patches import Circle
 import coloredlogs
 import logging
@@ -69,14 +70,20 @@ class MultiAgentVelocityObstacle:
         except:
             obstacles = []
         for i in range(self.number_of_timesteps):
+            # self.other_agents = dict()
+            # threads = []
             other_agents = []
             for key, agent in self.agents.items():
-                state_history, vel, state = agent.simulate_step(
-                    i, obstacles, other_agents
-                )
-                agent_as_obstacle = self.__agent_to_obstacle(vel, state)
-                other_agents.append(agent_as_obstacle)
-                self.global_state_history[key] = state_history
+                other_agents = self.__agent_step(key, agent, i, obstacles, other_agents)
+        #         threads.append(
+        #             threading.Thread(
+        #                 target=self.__agent_step,
+        #                 args=(key, agent, i, obstacles, self.other_agents.copy()),
+        #             )
+        #         )
+        #         threads[-1].start()
+        # for t in threads:
+        #     t.join()
         self.simulation_complete = True
 
     def visualize(self, saved_file, map_length, map_height):
@@ -85,6 +92,22 @@ class MultiAgentVelocityObstacle:
             return
 
         self.__plot(saved_file, map_length, map_height)
+
+    def __agent_step(self, key, agent, i, obstacles, other_agents_lst):
+        # other_agents = self.other_agents.copy()
+        # try:
+        #     del other_agents[key]
+        # except:
+        #     pass
+        # other_agents_lst = list(other_agents.values())
+        state_history, vel, state = agent.simulate_step(
+                    i, obstacles, other_agents_lst
+                )
+        agent_as_obstacle = self.__agent_to_obstacle(vel, state)
+        # self.other_agents[key] = agent_as_obstacle
+        self.global_state_history[key] = state_history
+        other_agents_lst.append(agent_as_obstacle)
+        return other_agents_lst
 
     def __agent_to_obstacle(self, velocity, pos):
         return np.concatenate((pos, velocity))
