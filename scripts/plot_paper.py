@@ -61,8 +61,8 @@ nmpc_worst_agent_space_scale = [3.7263431549072266, 3.6219232082366943, 2.334776
 
 def plot1():
     _, ax = plt.subplots()
-    plt.xlabel("Total Runtime")
-    plt.ylabel("Number of Agent(s)")
+    plt.ylabel("Total Runtime (s)")
+    plt.xlabel("Number of Agent(s)")
     ax.plot(agents, nmpc_runtime_agents_scale, "-o", label="NMPC")
     ax.plot(agents, cbs_runtime_agents_scale, "-o", label="CBS")
     plt.title("Complexity results for Agents performing Hub swaps")
@@ -72,8 +72,8 @@ def plot1():
 
 def plot2():
     _, ax = plt.subplots()
+    plt.ylabel("Total Runtime (s)")
     plt.xlabel("Search Space (x*y)")
-    plt.ylabel("Search Space Size")
     ax.plot(spaces, nmpc_runtime_space_scale, "-o", label="NMPC")
     ax.plot(spaces, cbs_runtime_space_scale, "-o", label="CBS")
     plt.title("Complexity results for Agents performing Hub swaps")
@@ -83,8 +83,8 @@ def plot2():
 
 def plot3():
     _, ax = plt.subplots()
-    plt.xlabel("Total Runtime")
-    plt.ylabel("Number of Agent(s)")
+    plt.ylabel("Total Runtime (s)")
+    plt.xlabel("Number of Agent(s)")
     ax.plot(agents, nmpc_worst_agent_agents_scale, "-o", label="NMPC (Worst Agent Perf)")
     ax.plot(agents, cbs_runtime_agents_scale, "-o", label="CBS")
     plt.title("Complexity results for Agents performing Hub swaps")
