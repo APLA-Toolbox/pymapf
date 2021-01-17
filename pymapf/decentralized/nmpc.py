@@ -18,6 +18,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib.patches import Circle
 import coloredlogs
+import threading
 import logging
 
 
@@ -94,14 +95,13 @@ class MultiAgentNMPC:
         except:
             obstacles = []
         for i in range(self.number_of_timesteps):
-            other_agents = []
+            self.other_agents = dict()
+            threads = []
             for key, agent in self.agents.items():
-                state_history, vel, state = agent.simulate_step(
-                    i, obstacles, other_agents
-                )
-                agent_as_obstacle = self.__agent_to_obstacle(vel, state)
-                other_agents.append(agent_as_obstacle)
-                self.global_state_history[key] = state_history
+                threads.append(threading.Thread(target=self.__agent_step, args=(key, agent, self.other_agents.copy(), i, obstacles)))
+                threads[-1].start()
+            for t in threads:                                                           
+                t.join()
         self.simulation_complete = True
 
     def visualize(self, saved_file, map_length, map_height):
@@ -110,6 +110,16 @@ class MultiAgentNMPC:
             return
 
         self.__plot(saved_file, map_length, map_height)
+
+    def __agent_step(self, key, agent, i, obstacles, other_agents):
+        del other_agents[key]
+        other_agents_lst = list(other_agents.values)
+        state_history, vel, state = agent.simulate_step(
+                    i, obstacles, other_agents_lst
+                )
+        agent_as_obstacle = self.__agent_to_obstacle(vel, state)
+        self.other_agents[key] = agent_as_obstacle
+        self.global_state_history[key] = state_history
 
     def __agent_to_obstacle(self, velocity, pos):
         return np.concatenate((pos, velocity))
