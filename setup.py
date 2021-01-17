@@ -9,7 +9,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="pymapf",  # Replace with your own username
-    version="0.1.0",
+    version="0.1.2",
     author="Erwin Lejeune",
     author_email="erwinlejeune.pro@gmail.com",
     description="Pymapf is a library for decentralized and centralized multi-agent planning tools",
