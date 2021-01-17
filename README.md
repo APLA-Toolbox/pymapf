@@ -11,7 +11,10 @@ A Python toolbox for Multi-Agents Planning (Centralized and Decentralized)
 ## Planners
 ### Decentralized (distributed)
 - Velocity Obstacles
-- Nonlinear Model Predictive Control
+- Nonlinear Model Predictive Control:
+![nmpc_scenario](https://user-images.githubusercontent.com/43545812/104828673-4018a000-586c-11eb-94ee-d80f34365acd.gif)
+
+![switch_positions_nmpc](https://user-images.githubusercontent.com/43545812/104828684-56bef700-586c-11eb-83d4-2763831d4155.gif)
 - TO DO:
     - Add parallelism
     - Replanning RRT*
