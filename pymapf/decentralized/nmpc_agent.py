@@ -153,14 +153,17 @@ class NMPCAgent:
         return self.id == other.id
 
     def __str__(self):
-        return "=======AGENT=======\nID = %s\nSTART_POSITION = %s\nGOAL_POSITION = %s\nRADIUS = %s\nVMIN = %s\nVMAX = %s\nHORIZON_LENGTH = %s\nQC = %s\nKappa = %s\n===================" % (
-            str(self.id),
-            str(self.start),
-            str(self.goal),
-            str(self.radius),
-            str(self.vmin),
-            str(self.vmax),
-            str(self.horizon_length),
-            str(self.qc),
-            str(self.kappa),
+        return (
+            "=======AGENT=======\nID = %s\nSTART_POSITION = %s\nGOAL_POSITION = %s\nRADIUS = %s\nVMIN = %s\nVMAX = %s\nHORIZON_LENGTH = %s\nQC = %s\nKappa = %s\n==================="
+            % (
+                str(self.id),
+                str(self.start),
+                str(self.goal),
+                str(self.radius),
+                str(self.vmin),
+                str(self.vmax),
+                str(self.horizon_length),
+                str(self.qc),
+                str(self.kappa),
+            )
         )
