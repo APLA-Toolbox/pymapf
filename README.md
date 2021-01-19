@@ -1,49 +1,73 @@
+<div align="center">
+    
+<img src="https://svgshare.com/i/TFJ.svg" alt="Logo" width="300">     
+    
+</div>
+
+<div align="center">
+
+# PyMAPF
+
+✨ A Python toolbox for Multi-Agents Planning (Centralized and Decentralized) ✨
+
+</div>
+
+<div align="center">
+    
 ![tests](https://github.com/APLA-Toolbox/pymapf/workflows/tests/badge.svg?branch=main)
 [![codecov](https://codecov.io/gh/APLA-Toolbox/pymapf/branch/main/graph/badge.svg?token=63GHA9JUND)](https://codecov.io/gh/APLA-Toolbox/pymapf)
 [![CodeFactor](https://www.codefactor.io/repository/github/apla-toolbox/pymapf/badge)](https://www.codefactor.io/repository/github/apla-toolbox/pymapf)
 [![Percentage of issues still open](http://isitmaintained.com/badge/open/APLA-Toolbox/pymapf.svg)](http://isitmaintained.com/project/APLA-Toolbox/pymapf "Percentage of issues still open")
+![PipPerMonths](https://img.shields.io/pypi/dm/pymapf.svg)
+[![Pip version fury.io](https://badge.fury.io/py/jupyddl.svg)](https://pypi.python.org/pypi/pymapf/)
 [![GitHub license](https://img.shields.io/github/license/Apla-Toolbox/pymapf.svg)](https://github.com/Apla-Toolbox/pymapf/blob/master/LICENSE)
 [![GitHub contributors](https://img.shields.io/github/contributors/Apla-Toolbox/pymapf.svg)](https://GitHub.com/Apla-Toolbox/pymapf/graphs/contributors/)
 
-# PyMAPF
-A Python toolbox for Multi-Agents Planning (Centralized and Decentralized)
+</div>
 
-## Planners
-### Decentralized (distributed)
-- Velocity Obstacles
-- Nonlinear Model Predictive Control:
+<div align="center">
+    
+[Report Bug](https://github.com/APLA-Toolbox/pymapf/issues) · [Request Feature](https://github.com/APLA-Toolbox/pymapf/issues)
 
-![nmpc_scenario](https://user-images.githubusercontent.com/43545812/104828673-4018a000-586c-11eb-94ee-d80f34365acd.gif)
+Loved the project? Please consider [donating](https://www.buymeacoffee.com/dq01aOE) to help it improve!
 
-![switch_positions_nmpc](https://user-images.githubusercontent.com/43545812/104828684-56bef700-586c-11eb-83d4-2763831d4155.gif)
-- TO DO:
-    - Add parallelism
-    - Replanning RRT*
-### Centralized
-- TO DO:
-    - CBS
-    - ECBS
-    - SIPP
+</div>
 
-## Dependencies
+## Features 🌱
+
+- ✨ Built to be expanded: easy to add new planners
+- 🖥️ Supported on Ubuntu
+- 🎌 Built with Python
+- 🔎 Reactive Distributed Planners (Nonlinear Model Predictive Control, Velocity Obstacles)
+- 🧭 Centralized Planners (Incoming...)
+- 📊 Benchmark Tools (Incoming...)
+- 🍻 Maintained (Incoming: Enhanced Conflict-Based Search, Cooperative A*, Local-Repair A*, Replanning RRT*...)
+
+<div align="center">
+    
+<img src="https://user-images.githubusercontent.com/43545812/104828684-56bef700-586c-11eb-83d4-2763831d4155.gif" alt="Logo" width="300">     
+    
+</div>
+
+## Dependencies 🖇️
 
 - Install Python (3.7.5 is the tested version)
 - Install Pip: `sudo apt install python3-pip`
 - Upgrade Pip: `python3 -m pip install --upgrade pip`
 
-### Using the repository
+### Using the repository 💾
 
 - Clone the repo: `git clone https://github.com/apla-toolbox/pymapf`
 - Cd into the repo `cd pymapf`
 - Install requirements: `python3 -m pip install -r requirements.txt`
 
-### Using the pip package (Not yet available)
+### Using the pip package 📦
 
 - Install the package: `python3 -m pip install pymapf`
 
-## Usage
+## Usage 📑
 
-### Scripts
+### Scripts 💨
 
 Launch hub switch scripts using:
 - `python3 scripts/switch_positions_nmpc.py`
@@ -51,7 +75,7 @@ Launch hub switch scripts using:
 
 More to come...
 
-### Library
+### Library 🗺️
 
 ```python
 from pymapf.decentralized import MultiAgentNMPC
@@ -79,11 +103,11 @@ sim.run_simulation()
 sim.visualize("filename_test_2", 10, 10)
 ```
 
-## Contribute
+## Contribute 🆘
 
 Open an issue to state clearly the contribution you want to make. Upon aproval send in a PR with the Issue referenced. (Implement Issue #No / Fix Issue #No).
 
-## Maintainers
+## Maintainers Ⓜ️
 
 - Erwin Lejeune
 - Sampreet Sarkar
