@@ -103,6 +103,24 @@ sim.run_simulation()
 sim.visualize("filename_test_2", 10, 10)
 ```
 
+## Cite 📰
+
+If you use the project in your work, please consider citing it with:
+```
+@misc{pymapf,
+  author = {Erwin Lejeune},
+  title = {PyMAPF: a python library for multi-agent pathfinding},
+  year = {2021},
+  publisher = {GitHub},
+  journal = {GitHub repository},
+  howpublished = {\url{https://github.com/APLA-Toolbox/pymapf}}
+}
+```
+
+List of publications & preprints using `pymapf` (please open a pull request to add missing entries):
+
+* [Survey of MAPF solutions](https://www.researchgate.net/publication/348716625_Survey_of_the_Multi-Agent_Pathfinding_Solutions) (January 2021)
+
 ## Contribute 🆘
 
 Open an issue to state clearly the contribution you want to make. Upon aproval send in a PR with the Issue referenced. (Implement Issue #No / Fix Issue #No).
