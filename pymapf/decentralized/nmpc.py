@@ -19,22 +19,26 @@ import matplotlib.animation as animation
 from matplotlib.patches import Circle
 import coloredlogs
 
-# import threading
+import multiprocessing as mp
 import logging
 
 
 class MultiAgentNMPC:
     def __init__(
-        self, simulation_time=8.0, timestep=0.1, nmpc_timestep=0.3, log_level="WARNING"
+        self, simulation_time=8.0, timestep=0.1, nmpc_timestep=0.3, threaded_mode=False, log_level="WARNING"
     ):
         self.simulation_time = simulation_time
         self.timestep = timestep
         self.number_of_timesteps = int(simulation_time / timestep)
         self.nmpc_timestep = nmpc_timestep
+        self.threaded_mode = threaded_mode
 
         # Agents
         self.agents = dict()
-        self.global_state_history = dict()
+        if threaded_mode:
+            self.global_state_history = mp.Manager().dict()
+        else:
+            self.global_state_history = dict()
 
         # Obstacles
         self.obstacles_objects = []
@@ -52,8 +56,8 @@ class MultiAgentNMPC:
         qc=5.0,
         kappa=4.0,
         radius=0.5,
-        vmax=2,
-        vmin=0.2,
+        vmax=3,
+        vmin=0.3,
         horizon_length=4,
     ):
         if id in self.agents:
@@ -96,20 +100,26 @@ class MultiAgentNMPC:
         except:
             obstacles = []
         for i in range(self.number_of_timesteps):
-            # self.other_agents = dict()
-            other_agents = []
-            # threads = []
+            if self.threaded_mode:
+                self.other_agents = dict()
+                threads = []
+            else:
+                other_agents = []
+    
             for key, agent in self.agents.items():
-                other_agents = self.__agent_step(key, agent, i, obstacles, other_agents)
-            #     threads.append(
-            #         threading.Thread(
-            #             target=self.__agent_step,
-            #             args=(key, agent, i, obstacles),
-            #         )
-            #     )
-            #     threads[-1].start()
-            # for t in threads:
-            #     t.join()
+                if self.threaded_mode:
+                    threads.append( mp.Process(
+                        target=self.__agent_step,
+                        args=(key, agent, i, obstacles, []),
+                        )
+                    )
+                    threads[-1].start()
+                else:
+                    other_agents = self.__agent_step(key, agent, i, obstacles, other_agents)
+            
+            if self.threaded_mode:
+                for t in threads:
+                    t.join()
         self.simulation_complete = True
 
     def visualize(self, saved_file, map_length, map_height):
@@ -120,18 +130,21 @@ class MultiAgentNMPC:
         self.__plot(saved_file, map_length, map_height)
 
     def __agent_step(self, key, agent, i, obstacles, other_agents_lst):
-        # other_agents = self.other_agents.copy()
-        # try:
-        #     del other_agents[key]
-        # except:
-        #     pass
-        # other_agents_lst = list(other_agents.values())
+        if self.threaded_mode:
+            other_agents = self.other_agents.copy()
+            try:
+                del other_agents[key]
+            except:
+                pass
+            other_agents_lst = list(other_agents.values())
         state_history, vel, state = agent.simulate_step(i, obstacles, other_agents_lst)
         agent_as_obstacle = self.__agent_to_obstacle(vel, state)
-        # self.other_agents[key] = agent_as_obstacle
-        other_agents_lst.append(agent_as_obstacle)
         self.global_state_history[key] = state_history
-        return other_agents_lst
+        if self.threaded_mode:
+            self.other_agents[key] = agent_as_obstacle
+        else:
+            other_agents_lst.append(agent_as_obstacle)
+            return other_agents_lst
 
     def __agent_to_obstacle(self, velocity, pos):
         return np.concatenate((pos, velocity))
@@ -159,6 +172,8 @@ class MultiAgentNMPC:
         lines = []
         agents_list = []
         for key, agent in self.agents.items():
+            print(self.global_state_history[key][0, 0])
+            print(self.global_state_history[key][0, 1])
             rgb = [random(), random(), random()]
             agents_list.append(
                 Circle(
