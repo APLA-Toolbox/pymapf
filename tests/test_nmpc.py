@@ -55,4 +55,3 @@ def test_visualize_obs():
     nmpc.register_obstacle(2, -3.14, Position(10, 7))
     nmpc.run_simulation()
     nmpc.visualize("toto", 10, 10)
-
