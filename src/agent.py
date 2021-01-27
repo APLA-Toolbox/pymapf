@@ -1,7 +1,9 @@
-from .common import DIAGONALS
-
+'''
+An agent is defined by an Id, a start position and a goal position. 
+To do: add radius
+'''
 class Agent:
-    def __init__(self, id, init_pos, goal_pos, nodes_dict=None):
+    def __init__(self, id, init_pos, goal_pos, allow_diagonals=False, nodes_dict=None):
         self.id = id
         self.init_pos = init_pos
         self.goal_pos = goal_pos
@@ -9,13 +11,14 @@ class Agent:
         self.plan = []
         self.conflicts_found = 0
         self.opened_nodes = 0
+        self.allow_diagonals = allow_diagonals
 
     def in_conflict(self, state, other_agents_paths):
         for key, val in other_agents_paths.items():
             if key == id:
                 continue
             
-            if DIAGONALS:
+            if self.allow_diagonals:
                 conflict_1 = state
                 conflict_2 = state
                 conflict_2.t += 1

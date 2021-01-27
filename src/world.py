@@ -1,4 +1,3 @@
-from .common import DIAGONALS
 import numpy as np
 from math import sqrt
 from typing import List, Tuple
@@ -9,16 +8,19 @@ from .node import Node
 
 
 class World:
-    def __init__(self, length: int, height: int, p_walls: float):
+    def __init__(self, length: int, height: int, p_walls: float, allow_diagonals=False):
         self.length = length
         self.height = height
         self.p_walls = p_walls
         self.path_added = False
-
+        self.walls = []
+        self.allow_diagonals = allow_diagonals
+        self.start_positions = []
+        self.goal_positions = []
         self.grid = np.zeros((height, length), int)
         self.__generate_walls()
 
-        if not DIAGONALS:
+        if not allow_diagonals:
             # up, left, down, right
             self.delta = [[-1, 0, 1], [0, -1, 1], [1, 0, 1], [0, 1, 1]]
         else:
@@ -96,7 +98,7 @@ class World:
         )
         hTarget = nTarget.calculate_heuristic()
 
-        while h < hTarget * pHeuristic:
+        while h < hTarget * pHeuristic and start in self.start_positions and goal in self.goal_positions:
             i += 1
             start = self.get_random_available_position()
             goal = self.get_random_available_position()
@@ -110,6 +112,8 @@ class World:
                     )
                 )
                 return None
+        self.goal_positions.append(goal)
+        self.start_positions.append(start)
         return start, goal
 
     def change_grid(self, position: Tuple[int], value: int):
@@ -120,7 +124,10 @@ class World:
             for y in range(self.length):
                 if random.random() < self.p_walls:
                     self.grid[x][y] = 1
+                    self.walls.append((x, y))
                 if x == 0 or x == self.height - 1:
                     self.grid[x][y] = 1
+                    self.walls.append((x, y))
                 if y == 0 or y == self.length - 1:
                     self.grid[x][y] = 1
+                    self.walls.append((x, y))
