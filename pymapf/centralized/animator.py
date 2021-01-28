@@ -12,7 +12,6 @@ from matplotlib.collections import PatchCollection
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import animation
-import matplotlib.animation as manimation
 import math
 import logging
 
@@ -72,7 +71,6 @@ class Animator:
                 )
         except BaseException as e:
             logging.debug(e)
-            pass
 
     def __initialize_agents(self):
         for _, agent in self.coop_agents.items():

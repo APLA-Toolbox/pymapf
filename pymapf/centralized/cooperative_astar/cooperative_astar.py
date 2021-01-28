@@ -38,7 +38,6 @@ class CooperativeAStar:
                 self.searches_sim_times.append(self.paths[agent.ident][-1].t)
             except BaseException as e:
                 logging.debug(e)
-                pass
         self.simulation_complete = True
 
     def visualize(self, save_file):
