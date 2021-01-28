@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import yaml
 import matplotlib
 from random import random
 import os
@@ -14,7 +13,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import animation
 import matplotlib.animation as manimation
-import argparse
 import math
 import logging
 
