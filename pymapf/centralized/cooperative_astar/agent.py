@@ -19,7 +19,7 @@ class Agent:
 
     def in_conflict(self, state, other_agents_paths):
         for key, val in other_agents_paths.items():
-            if key == ident:
+            if key == self.ident:
                 continue
 
             if self.allow_diagonals:
