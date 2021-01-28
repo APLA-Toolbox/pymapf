@@ -16,10 +16,12 @@ def test_mavo_agents():
     mavo.register_agent("titi", Position(2, 9), Position(8, 5))
     assert len(mavo.agents) == 3
 
+
 def test_mavo_obstacles():
     mavo = MultiAgentVelocityObstacle()
     mavo.register_obstacle(2, 3.14, Position(2, 3))
     assert len(mavo.obstacles_objects) == 1
+
 
 def test_mavo_simulation_no_obs():
     mavo = MultiAgentVelocityObstacle()
@@ -28,12 +30,14 @@ def test_mavo_simulation_no_obs():
     mavo.register_agent("titi", Position(10, 2), Position(0, 5))
     mavo.run_simulation()
 
+
 def test_mavo_simulation_obstacles():
     mavo = MultiAgentVelocityObstacle()
     mavo.register_agent("tata", Position(2, 2), Position(4, 5))
     mavo.register_obstacle(2, 3.14, Position(2, 3))
     mavo.register_obstacle(2, -3.14, Position(2, 10))
     mavo.run_simulation()
+
 
 def test_mavo_no_obs_vis():
     mavo = MultiAgentVelocityObstacle()
@@ -42,6 +46,7 @@ def test_mavo_no_obs_vis():
     mavo.register_agent("titi", Position(10, 2), Position(0, 5))
     mavo.run_simulation()
     mavo.visualize("tata", 10, 10)
+
 
 def test_mavo_obs_vis():
     mavo = MultiAgentVelocityObstacle()
