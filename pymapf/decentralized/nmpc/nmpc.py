@@ -3,7 +3,7 @@ Decentralized planning using reactive control (nonlinear model predictive contro
 author: Erwin Lejeune (erwin.lejeune15@gmail.com)
 """
 
-from .obstacle import Obstacle
+from ..obstacle import Obstacle
 from .nmpc_agent import NMPCAgent
 import numpy as np
 import matplotlib as mpl

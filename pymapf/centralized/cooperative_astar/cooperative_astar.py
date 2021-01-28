@@ -1,10 +1,9 @@
-from src.agent import Agent
-from src.astar import AStar
+from .agent import Agent
+from .astar import AStar
 import time
-from src.common import TIME
-from src.dataviz import DataViz
-from src.world import World
-from src.animator import Animator
+from ..common import TIME
+from ..world import World
+from ..animator import Animator
 import coloredlogs
 import logging
 
@@ -32,7 +31,10 @@ class CooperativeAStar:
         for _, agent in self.agents.items():
             astar = AStar(agent, self.world, self.paths)
             self.paths[agent.id] = astar.search()
-            self.searches_sim_times.append(self.paths[agent.id][-1].t)
+            try:
+                self.searches_sim_times.append(self.paths[agent.id][-1].t)
+            except:
+                pass
         self.simulation_complete = True
     
     def visualize(self, save_file):

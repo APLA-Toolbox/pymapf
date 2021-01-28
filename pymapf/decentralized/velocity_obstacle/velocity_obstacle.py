@@ -3,7 +3,7 @@ Decentralized planning using velocity obstacles
 author: Erwin Lejeune (erwin.lejeune15@gmail.com)
 """
 
-from .obstacle import Obstacle
+from ..obstacle import Obstacle
 from .velocity_agent import VelocityAgent
 import numpy as np
 import matplotlib as mpl

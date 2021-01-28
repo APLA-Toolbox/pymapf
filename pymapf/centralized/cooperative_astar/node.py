@@ -1,5 +1,5 @@
 from math import sqrt
-from .common import HEURISTIC
+from ..common import HEURISTIC
 from .state import State
 
 

@@ -103,12 +103,12 @@ class Animator:
             self.__animations,
             init_func=self.__initialize_animation,
             frames=int(self.simulation_time + 1) * 10,
-            interval=150,
+            interval=300,
             blit=True,
         )
     
     def save(self, file_name):
-        self.anim.save(file_name+".gif", "ffmpeg", fps=15),
+        self.anim.save(file_name+".gif", "ffmpeg", fps=30),
 
     def show(self):
         plt.show()

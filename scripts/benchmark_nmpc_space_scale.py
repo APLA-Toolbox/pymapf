@@ -2,7 +2,7 @@ from os import path
 import sys
 
 sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
-from pymapf.decentralized.nmpc import MultiAgentNMPC
+from pymapf.decentralized.nmpc.nmpc import MultiAgentNMPC
 from pymapf.decentralized.position import Position
 import numpy as np
 import time

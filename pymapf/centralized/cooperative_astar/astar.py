@@ -1,8 +1,9 @@
 from .node import Node
 from typing import Tuple, List
 from termcolor import colored
-from .world import World
+from ..world import World
 from .state import State
+import logging
 from .agent import Agent
 
 
@@ -68,7 +69,7 @@ class AStar:
             current_node = self.nodes[current_key]
 
             if current_node.pos == self.target.pos:
-                print(colored("Found path.", "green"))
+                logging.debug("Found path for agent [%s]" % str(self.agent.id))
                 self.agent.opened_nodes = opened_nodes
                 self.agent.path = self.retrace_path(current_node)
                 return self.agent.path
@@ -97,7 +98,7 @@ class AStar:
                 else:
                     self.nodes[child_node.pos] = child_node
                     self.opened_nodes += 1
-        print(colored("Path not found", "red"))
+        logging.warning("Path not found for agent [%s]" % str(self.agent.id))
         return []
 
     def get_successors(self, parent: Node) -> List[Node]:
