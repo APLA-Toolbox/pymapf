@@ -1,6 +1,6 @@
 name: pip-tests
 
-on: [push]
+on: [prerelease]
 
 jobs:
   test:
