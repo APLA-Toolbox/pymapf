@@ -46,7 +46,7 @@ class MultiAgentNMPC:
 
     def register_agent(
         self,
-        id,
+        ident,
         start,
         goal,
         qc=5.0,
@@ -56,11 +56,11 @@ class MultiAgentNMPC:
         vmin=0.2,
         horizon_length=4,
     ):
-        if id in self.agents:
+        if ident in self.agents:
             logging.warning("Failed to register agent: ID has already been registered.")
             return
         agent = NMPCAgent(
-            id,
+            ident,
             start,
             goal,
             self.number_of_timesteps,
@@ -73,7 +73,7 @@ class MultiAgentNMPC:
             vmin,
             horizon_length,
         )
-        self.agents[id] = agent
+        self.agents[ident] = agent
 
     def register_obstacle(self, velocity, theta, initial_position):
         obstacle = Obstacle(
@@ -93,7 +93,8 @@ class MultiAgentNMPC:
     def run_simulation(self):
         try:
             obstacles = self.obstacles
-        except:
+        except BaseException as e:
+            logging.debug(e)
             obstacles = []
         for i in range(self.number_of_timesteps):
             # self.other_agents = dict()
@@ -123,7 +124,8 @@ class MultiAgentNMPC:
         # other_agents = self.other_agents.copy()
         # try:
         #     del other_agents[key]
-        # except:
+        # except BaseException as e:
+        #     logging.debug(e)
         #     pass
         # other_agents_lst = list(other_agents.values())
         state_history, vel, state = agent.simulate_step(i, obstacles, other_agents_lst)
@@ -137,8 +139,6 @@ class MultiAgentNMPC:
         return np.concatenate((pos, velocity))
 
     def __init_logger(self, log_level):
-        import os
-
         if not os.path.exists("logs"):
             os.makedirs("logs")
         logging.basicConfig(
@@ -184,8 +184,8 @@ class MultiAgentNMPC:
                         edgecolor="black",
                     )
                 )
-        except:
-            pass
+        except BaseException as e:
+            logging.debug(e)
 
         def init():
             for agent in agents_list:
@@ -209,7 +209,7 @@ class MultiAgentNMPC:
                     self.global_state_history[key][1, :i],
                 )
                 k += 1
-            for j in range(len(obstacle_list)):
+            for j, _ in enumerate(obstacle_list):
                 obstacle_list[j].center = (
                     self.obstacles[0, i, j],
                     self.obstacles[1, i, j],

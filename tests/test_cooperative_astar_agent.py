@@ -9,6 +9,7 @@ import numpy as np
 import random
 import time
 
+
 def test_agent():
     a = Agent("h", (2, 2), (3, 3), allow_diagonals=True)
     assert a.init_pos == (2, 2) and a.goal_pos == (3, 3)

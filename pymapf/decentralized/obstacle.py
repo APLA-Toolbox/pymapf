@@ -1,5 +1,6 @@
 import numpy as np
 
+
 class Obstacle:
     def __init__(
         self,

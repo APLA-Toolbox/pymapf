@@ -1,10 +1,14 @@
-'''
+"""
 An agent is defined by an Id, a start position and a goal position. 
 To do: add radius
-'''
+"""
+
+
 class Agent:
-    def __init__(self, id, init_pos, goal_pos, allow_diagonals=False, nodes_dict=None):
-        self.id = id
+    def __init__(
+        self, ident, init_pos, goal_pos, allow_diagonals=False, nodes_dict=None
+    ):
+        self.ident = ident
         self.init_pos = init_pos
         self.goal_pos = goal_pos
         self.nodes_dict = nodes_dict
@@ -15,9 +19,9 @@ class Agent:
 
     def in_conflict(self, state, other_agents_paths):
         for key, val in other_agents_paths.items():
-            if key == id:
+            if key == ident:
                 continue
-            
+
             if self.allow_diagonals:
                 conflict_1 = state
                 conflict_2 = state
@@ -53,7 +57,17 @@ class Agent:
                 conflict_9.x -= 1
                 conflict_9.y -= 1
                 conflict_9.t += 1
-                conflicts = [conflict_1, conflict_2, conflict_3, conflict_4, conflict_5, conflict_6, conflict_7, conflict_8, conflict_9]
+                conflicts = [
+                    conflict_1,
+                    conflict_2,
+                    conflict_3,
+                    conflict_4,
+                    conflict_5,
+                    conflict_6,
+                    conflict_7,
+                    conflict_8,
+                    conflict_9,
+                ]
             else:
                 conflict_1 = state
                 conflict_2 = state
@@ -84,7 +98,7 @@ class Agent:
 
     def __str__(self):
         return "Id: %d | Init: [%d;%d] | Goal: [%d;%d]" % (
-            self.id,
+            self.ident,
             self.init_pos[0],
             self.init_pos[1],
             self.goal_pos[0],

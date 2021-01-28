@@ -53,8 +53,7 @@ class Node:
         dx = self.pos_y - self.goal_y
         if HEURISTIC == 1:
             return abs(dx) + abs(dy)
-        else:
-            return sqrt(dy ** 2 + dx ** 2)
+        return sqrt(dy ** 2 + dx ** 2)
 
     def print(self):
         print("Node : <State = [x=%d; y=%d; t=%d]>" % (self.pos_x, self.pos_y, self.t))

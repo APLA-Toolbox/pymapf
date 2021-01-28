@@ -98,7 +98,9 @@ class World:
         )
         hTarget = nTarget.calculate_heuristic()
 
-        while h < hTarget * pHeuristic or (start in self.start_positions and goal in self.goal_positions):
+        while h < hTarget * pHeuristic or (
+            start in self.start_positions and goal in self.goal_positions
+        ):
             i += 1
             start = self.get_random_available_position()
             goal = self.get_random_available_position()

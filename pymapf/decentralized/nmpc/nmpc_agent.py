@@ -1,12 +1,13 @@
 import numpy as np
 from scipy.optimize import minimize, Bounds
 import time
+import logging
 
 
 class NMPCAgent:
     def __init__(
         self,
-        id,
+        ident,
         start,
         goal,
         number_of_timesteps,
@@ -20,7 +21,7 @@ class NMPCAgent:
         horizon_length=4,
     ):
         # Initializations
-        self.id = id
+        self.ident = ident
         self.start = np.array([start.x, start.y])
         self.goal = np.array([goal.x, goal.y])
 
@@ -97,7 +98,7 @@ class NMPCAgent:
     def __total_collision_cost(self, robot, obstacles):
         total_cost = 0
         for i in range(self.horizon_length):
-            for j in range(len(obstacles)):
+            for j, _ in enumerate(obstacles):
                 obstacle = obstacles[j]
                 rob = robot[2 * i : 2 * i + 2]
                 obs = obstacle[2 * i : 2 * i + 2]
@@ -123,8 +124,8 @@ class NMPCAgent:
                 u = np.vstack([np.eye(2)] * self.horizon_length) @ obstacle_vel
                 obstacle_prediction = self.__update_state(obstacle_position, u)
                 obstacle_predictions.append(obstacle_prediction)
-        except:
-            pass
+        except BaseException as e:
+            logging.debug(e)
 
         for agent in other_agents:
             agent_position = agent[:2]
@@ -149,21 +150,24 @@ class NMPCAgent:
         return new_state
 
     def __hash__(self):
-        h = str(self.id) + str(self.start) + str(self.goal) + str(self.radius)
+        h = str(self.ident) + str(self.start) + str(self.goal) + str(self.radius)
         return h
 
     def __eq__(self, other):
-        return self.id == other.id
+        return self.ident == other.ident
 
     def __str__(self):
-        return "=======AGENT=======\nID = %s\nSTART_POSITION = %s\nGOAL_POSITION = %s\nRADIUS = %s\nVMIN = %s\nVMAX = %s\nHORIZON_LENGTH = %s\nQC = %s\nKappa = %s\n===================" % (
-            str(self.id),
-            str(self.start),
-            str(self.goal),
-            str(self.radius),
-            str(self.vmin),
-            str(self.vmax),
-            str(self.horizon_length),
-            str(self.qc),
-            str(self.kappa),
+        return (
+            "=======AGENT=======\nID = %s\nSTART_POSITION = %s\nGOAL_POSITION = %s\nRADIUS = %s\nVMIN = %s\nVMAX = %s\nHORIZON_LENGTH = %s\nQC = %s\nKappa = %s\n==================="
+            % (
+                str(self.ident),
+                str(self.start),
+                str(self.goal),
+                str(self.radius),
+                str(self.vmin),
+                str(self.vmax),
+                str(self.horizon_length),
+                str(self.qc),
+                str(self.kappa),
+            )
         )

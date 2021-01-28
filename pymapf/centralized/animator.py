@@ -16,17 +16,19 @@ from matplotlib import animation
 import matplotlib.animation as manimation
 import argparse
 import math
+import logging
 
 Colors = ["orange", "blue", "green"]
+
 
 class Animator:
     def __init__(self, world, paths, agents, simulation_time):
         self.world = world
         self.paths = paths
         self.coop_agents = agents
-        
+
         aspect = self.world.length / self.world.height
-        self.fig = plt.figure(frameon=False, figsize=(4*aspect, 4))
+        self.fig = plt.figure(frameon=False, figsize=(4 * aspect, 4))
         self.ax = self.fig.add_subplot(111, aspect="equal")
         self.fig.subplots_adjust(
             left=0, right=1, bottom=0, top=1, wspace=None, hspace=None
@@ -45,9 +47,8 @@ class Animator:
 
         self.__initialize_obstacles(xmin, ymin, xmax, ymax)
         self.__initialize_agents()
-        self.simulation_time = simulation_time 
+        self.simulation_time = simulation_time
         self.__animate()
-
 
     def __initialize_obstacles(self, xmin, ymin, xmax, ymax):
         self.patches.append(
@@ -64,12 +65,17 @@ class Animator:
             for pos in self.world.walls:
                 self.patches.append(
                     Rectangle(
-                        (pos[1] - 0.5, pos[0] - 0.5), 1, 1, facecolor="red", edgecolor="red"
+                        (pos[1] - 0.5, pos[0] - 0.5),
+                        1,
+                        1,
+                        facecolor="red",
+                        edgecolor="red",
                     )
                 )
-        except:
+        except BaseException as e:
+            logging.debug(e)
             pass
-    
+
     def __initialize_agents(self):
         for _, agent in self.coop_agents.items():
             self.patches.append(
@@ -82,21 +88,21 @@ class Animator:
                     alpha=0.5,
                 )
             )
-            self.agents[agent.id] = Circle(
+            self.agents[agent.ident] = Circle(
                 (agent.init_pos[0], agent.init_pos[1]),
                 0.3,
                 facecolor=Colors[0],
                 edgecolor="black",
             )
-            self.agents[agent.id].original_face_color = Colors[0]
-            self.patches.append(self.agents[agent.id])
-            self.agents_labels[agent.id] = self.ax.text(
-                agent.init_pos[0], agent.init_pos[1], agent.id
+            self.agents[agent.ident].original_face_color = Colors[0]
+            self.patches.append(self.agents[agent.ident])
+            self.agents_labels[agent.ident] = self.ax.text(
+                agent.init_pos[0], agent.init_pos[1], agent.ident
             )
-            self.agents_labels[agent.id].set_horizontalalignment("center")
-            self.agents_labels[agent.id].set_verticalalignment("center")
-            self.artists.append(self.agents_labels[agent.id])
-        
+            self.agents_labels[agent.ident].set_horizontalalignment("center")
+            self.agents_labels[agent.ident].set_verticalalignment("center")
+            self.artists.append(self.agents_labels[agent.ident])
+
     def __animate(self):
         self.anim = animation.FuncAnimation(
             self.fig,
@@ -106,9 +112,10 @@ class Animator:
             interval=300,
             blit=True,
         )
-    
+
     def save(self, file_name):
-        self.anim.save(file_name+".gif", "ffmpeg", fps=30),
+        self.anim.save(file_name + ".gif", "ffmpeg", fps=30)
+        logging.debug("Saved file as %s" % file_name + ".gif")
 
     def show(self):
         plt.show()
@@ -119,12 +126,13 @@ class Animator:
         for a in self.artists:
             self.ax.add_artist(a)
         return self.patches + self.artists
-    
+
     def __animations(self, i):
         for agent_name, path in self.paths.items():
             try:
                 pos = (path[i].x, path[i].y)
-            except:
+            except BaseException as e:
+                logging.debug(e)
                 pos = (path[-1].x, path[-1].y)
             p = (pos[0], pos[1])
             self.agents[agent_name].center = p
@@ -136,7 +144,7 @@ class Animator:
 
         # check drive-drive collisions
         agents_array = [agent for _, agent in self.agents.items()]
-        for i in range(0, len(agents_array)):
+        for i, _ in enumerate(agents_array):
             for j in range(i + 1, len(agents_array)):
                 d1 = agents_array[i]
                 d2 = agents_array[j]

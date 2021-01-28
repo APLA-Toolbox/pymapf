@@ -7,6 +7,7 @@ from ..animator import Animator
 import coloredlogs
 import logging
 
+
 class CooperativeAStar:
     def __init__(self, world, heuristic=0, log_level="WARNING"):
         self.world = world
@@ -21,27 +22,32 @@ class CooperativeAStar:
         self.__init_logger(log_level)
         coloredlogs.install(level=log_level)
 
-    def register_agent(self, id, start, goal):
-        if id in self.agents:
+    def register_agent(self, ident, start, goal):
+        if ident in self.agents:
             logging.warning("Agent ID already registered, ignoring...")
             return
-        self.agents[id] = Agent(id, start, goal, allow_diagonals=self.allow_diagonals)
+        self.agents[ident] = Agent(
+            ident, start, goal, allow_diagonals=self.allow_diagonals
+        )
 
     def run_simulation(self):
         for _, agent in self.agents.items():
             astar = AStar(agent, self.world, self.paths)
-            self.paths[agent.id] = astar.search()
+            self.paths[agent.ident] = astar.search()
             try:
-                self.searches_sim_times.append(self.paths[agent.id][-1].t)
-            except:
+                self.searches_sim_times.append(self.paths[agent.ident][-1].t)
+            except BaseException as e:
+                logging.debug(e)
                 pass
         self.simulation_complete = True
-    
+
     def visualize(self, save_file):
         if not self.simulation_complete:
             logging.warning("Simulation isn't yet complete: can't visualize.")
             return
-        anim = Animator(self.world, self.paths, self.agents, max(self.searches_sim_times))
+        anim = Animator(
+            self.world, self.paths, self.agents, max(self.searches_sim_times)
+        )
         anim.save(save_file)
         anim.show()
 

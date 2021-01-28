@@ -69,7 +69,7 @@ class AStar:
             current_node = self.nodes[current_key]
 
             if current_node.pos == self.target.pos:
-                logging.debug("Found path for agent [%s]" % str(self.agent.id))
+                logging.debug("Found path for agent [%s]" % str(self.agent.ident))
                 self.agent.opened_nodes = opened_nodes
                 self.agent.path = self.retrace_path(current_node)
                 return self.agent.path
@@ -98,7 +98,7 @@ class AStar:
                 else:
                     self.nodes[child_node.pos] = child_node
                     self.opened_nodes += 1
-        logging.warning("Path not found for agent [%s]" % str(self.agent.id))
+        logging.warning("Path not found for agent [%s]" % str(self.agent.ident))
         return []
 
     def get_successors(self, parent: Node) -> List[Node]:
