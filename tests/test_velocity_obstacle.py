@@ -5,7 +5,9 @@ from os import path
 
 sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
 
-from pymapf.decentralized.velocity_obstacle import MultiAgentVelocityObstacle
+from pymapf.decentralized.velocity_obstacle.velocity_obstacle import (
+    MultiAgentVelocityObstacle,
+)
 from pymapf.decentralized.position import Position
 
 

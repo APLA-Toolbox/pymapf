@@ -1,10 +1,10 @@
 """
-Decentralized planning using velocity obstacles 
+Decentralized planning using reactive control (nonlinear model predictive control)
 author: Erwin Lejeune (erwin.lejeune15@gmail.com)
 """
 
-from .obstacle import Obstacle
-from .velocity_agent import VelocityAgent
+from ..obstacle import Obstacle
+from .nmpc_agent import NMPCAgent
 import numpy as np
 import matplotlib as mpl
 from random import random
@@ -16,18 +16,21 @@ else:
     mpl.use("TkAgg")
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-
-# import threading
 from matplotlib.patches import Circle
 import coloredlogs
+
+# import threading
 import logging
 
 
-class MultiAgentVelocityObstacle:
-    def __init__(self, simulation_time=8.0, timestep=0.1, log_level="WARNING"):
+class MultiAgentNMPC:
+    def __init__(
+        self, simulation_time=8.0, timestep=0.1, nmpc_timestep=0.3, log_level="WARNING"
+    ):
         self.simulation_time = simulation_time
         self.timestep = timestep
         self.number_of_timesteps = int(simulation_time / timestep)
+        self.nmpc_timestep = nmpc_timestep
 
         # Agents
         self.agents = dict()
@@ -41,14 +44,36 @@ class MultiAgentVelocityObstacle:
         self.__init_logger(log_level)
         coloredlogs.install(level=log_level)
 
-    def register_agent(self, id, start, goal, radius=0.5, vmax=2, vmin=0.2):
-        if id in self.agents:
+    def register_agent(
+        self,
+        ident,
+        start,
+        goal,
+        qc=5.0,
+        kappa=4.0,
+        radius=0.5,
+        vmax=2,
+        vmin=0.2,
+        horizon_length=4,
+    ):
+        if ident in self.agents:
             logging.warning("Failed to register agent: ID has already been registered.")
             return
-        agent = VelocityAgent(
-            id, start, goal, self.number_of_timesteps, self.timestep, radius, vmax, vmin
+        agent = NMPCAgent(
+            ident,
+            start,
+            goal,
+            self.number_of_timesteps,
+            self.nmpc_timestep,
+            self.timestep,
+            qc,
+            kappa,
+            radius,
+            vmax,
+            vmin,
+            horizon_length,
         )
-        self.agents[id] = agent
+        self.agents[ident] = agent
 
     def register_obstacle(self, velocity, theta, initial_position):
         obstacle = Obstacle(
@@ -68,23 +93,24 @@ class MultiAgentVelocityObstacle:
     def run_simulation(self):
         try:
             obstacles = self.obstacles
-        except:
+        except BaseException as e:
+            logging.debug(e)
             obstacles = []
         for i in range(self.number_of_timesteps):
             # self.other_agents = dict()
-            # threads = []
             other_agents = []
+            # threads = []
             for key, agent in self.agents.items():
                 other_agents = self.__agent_step(key, agent, i, obstacles, other_agents)
-        #         threads.append(
-        #             threading.Thread(
-        #                 target=self.__agent_step,
-        #                 args=(key, agent, i, obstacles, self.other_agents.copy()),
-        #             )
-        #         )
-        #         threads[-1].start()
-        # for t in threads:
-        #     t.join()
+            #     threads.append(
+            #         threading.Thread(
+            #             target=self.__agent_step,
+            #             args=(key, agent, i, obstacles),
+            #         )
+            #     )
+            #     threads[-1].start()
+            # for t in threads:
+            #     t.join()
         self.simulation_complete = True
 
     def visualize(self, saved_file, map_length, map_height):
@@ -98,22 +124,21 @@ class MultiAgentVelocityObstacle:
         # other_agents = self.other_agents.copy()
         # try:
         #     del other_agents[key]
-        # except:
+        # except BaseException as e:
+        #     logging.debug(e)
         #     pass
         # other_agents_lst = list(other_agents.values())
         state_history, vel, state = agent.simulate_step(i, obstacles, other_agents_lst)
         agent_as_obstacle = self.__agent_to_obstacle(vel, state)
         # self.other_agents[key] = agent_as_obstacle
-        self.global_state_history[key] = state_history
         other_agents_lst.append(agent_as_obstacle)
+        self.global_state_history[key] = state_history
         return other_agents_lst
 
     def __agent_to_obstacle(self, velocity, pos):
         return np.concatenate((pos, velocity))
 
     def __init_logger(self, log_level):
-        import os
-
         if not os.path.exists("logs"):
             os.makedirs("logs")
         logging.basicConfig(
@@ -159,8 +184,8 @@ class MultiAgentVelocityObstacle:
                         edgecolor="black",
                     )
                 )
-        except:
-            pass
+        except BaseException as e:
+            logging.debug(e)
 
         def init():
             for agent in agents_list:
@@ -184,7 +209,7 @@ class MultiAgentVelocityObstacle:
                     self.global_state_history[key][1, :i],
                 )
                 k += 1
-            for j in range(len(obstacle_list)):
+            for j, _ in enumerate(obstacle_list):
                 obstacle_list[j].center = (
                     self.obstacles[0, i, j],
                     self.obstacles[1, i, j],

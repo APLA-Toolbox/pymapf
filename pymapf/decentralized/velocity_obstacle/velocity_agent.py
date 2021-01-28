@@ -1,11 +1,12 @@
 import numpy as np
 import time
+import logging
 
 
 class VelocityAgent:
     def __init__(
         self,
-        id,
+        ident,
         start,
         goal,
         number_of_timesteps,
@@ -15,7 +16,7 @@ class VelocityAgent:
         vmin=0.2,
     ):
         # Agent Initialization
-        self.id = id
+        self.ident = ident
         self.start = np.array([start.x, start.y])
         self.goal = np.array([goal.x, goal.y])
 
@@ -61,7 +62,8 @@ class VelocityAgent:
             pos_agent = state[:2]
             number_of_obstacles = np.shape(obstacles)[1]
 
-        except:
+        except BaseException as e:
+            logging.debug(e)
             pos_agent = state[:2]
             number_of_obstacles = 0
 
@@ -138,7 +140,8 @@ class VelocityAgent:
             norm = np.linalg.norm(diffs, axis=0)
             min_index = np.where(norm == np.amin(norm))[0][0]
             cmd_vel = v_satisfying_constraints[:, min_index]
-        except:
+        except BaseException as e:
+            logging.debug(e)
             cmd_vel = np.array([0, 0])
         return cmd_vel
 

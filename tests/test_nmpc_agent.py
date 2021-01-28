@@ -5,7 +5,7 @@ from os import path
 
 sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
 
-from pymapf.decentralized.nmpc_agent import NMPCAgent
+from pymapf.decentralized.nmpc.nmpc_agent import NMPCAgent
 from pymapf.decentralized.position import Position
 import numpy as np
 

@@ -5,7 +5,7 @@ from os import path
 
 sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
 
-from pymapf.decentralized.velocity_agent import VelocityAgent
+from pymapf.decentralized.velocity_obstacle.velocity_agent import VelocityAgent
 from pymapf.decentralized.position import Position
 import numpy as np
 
