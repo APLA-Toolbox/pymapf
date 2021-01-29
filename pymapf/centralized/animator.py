@@ -14,6 +14,7 @@ import numpy as np
 from matplotlib import animation
 import math
 import logging
+logging.getLogger('matplotlib').setLevel(logging.WARNING)
 
 Colors = ["orange", "blue", "green"]
 
@@ -105,12 +106,12 @@ class Animator:
             self.__animations,
             init_func=self.__initialize_animation,
             frames=int(self.simulation_time + 1) * 10,
-            interval=300,
-            blit=True,
+            interval=250,
+            blit=False,
         )
 
     def save(self, file_name):
-        self.anim.save(file_name + ".gif", "ffmpeg", fps=30)
+        self.anim.save(file_name + ".gif", "ffmpeg", fps=5)
         logging.debug("Saved file as %s" % file_name + ".gif")
 
     def show(self):

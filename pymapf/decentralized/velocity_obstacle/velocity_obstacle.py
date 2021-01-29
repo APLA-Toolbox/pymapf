@@ -21,6 +21,7 @@ import matplotlib.animation as animation
 from matplotlib.patches import Circle
 import coloredlogs
 import logging
+logging.getLogger('matplotlib').setLevel(logging.WARNING)
 
 
 class MultiAgentVelocityObstacle:
