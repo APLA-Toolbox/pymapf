@@ -16,7 +16,7 @@ import math
 import logging
 logging.getLogger('matplotlib').setLevel(logging.WARNING)
 
-Colors = ["orange", "blue", "green"]
+Colors = ["skyblue", "blue", "orange"]
 
 
 class Animator:
@@ -55,7 +55,7 @@ class Animator:
                 xmax - xmin,
                 ymax - ymin,
                 facecolor="none",
-                edgecolor="red",
+                edgecolor="black",
             )
         )
 
@@ -66,8 +66,8 @@ class Animator:
                         (pos[1] - 0.5, pos[0] - 0.5),
                         1,
                         1,
-                        facecolor="red",
-                        edgecolor="red",
+                        facecolor="black",
+                        edgecolor="black",
                     )
                 )
         except BaseException as e:
@@ -147,7 +147,7 @@ class Animator:
                 d2 = agents_array[j]
                 pos1 = np.array(d1.center)
                 pos2 = np.array(d2.center)
-                if np.linalg.norm(pos1 - pos2) < 0.7:
+                if np.linalg.norm(pos1 - pos2) < 1:
                     d1.set_facecolor("red")
                     d2.set_facecolor("red")
                     print("COLLISION! (agent-agent) ({}, {})".format(i, j))
