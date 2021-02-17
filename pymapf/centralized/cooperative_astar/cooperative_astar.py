@@ -3,6 +3,7 @@ from .astar import AStar
 import time
 from ..common import TIME
 from ..world import World
+from .state import State
 from ..animator import Animator
 import coloredlogs
 import logging
@@ -29,6 +30,7 @@ class CooperativeAStar:
         self.agents[ident] = Agent(
             ident, start, goal, allow_diagonals=self.allow_diagonals
         )
+        self.paths[ident] = [State(start[1], start[0], 0)]
 
     def run_simulation(self):
         for _, agent in self.agents.items():
@@ -38,6 +40,7 @@ class CooperativeAStar:
                 self.searches_sim_times.append(self.paths[agent.ident][-1].t)
             except BaseException as e:
                 logging.debug(e)
+            
         self.simulation_complete = True
 
     def visualize(self, save_file):

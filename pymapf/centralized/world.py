@@ -22,7 +22,7 @@ class World:
 
         if not allow_diagonals:
             # up, left, down, right
-            self.delta = [[-1, 0, 1], [0, -1, 1], [1, 0, 1], [0, 1, 1]]
+            self.delta = [[-1, 0, 1], [0, -1, 1], [1, 0, 1], [0, 1, 1], [0, 0, 1]]
         else:
             # up, left, down, right
             # upleft, upright, downleft, downright
@@ -31,6 +31,7 @@ class World:
                 [0, -1, 1],
                 [1, 0, 1],
                 [0, 1, 1],
+                [0, 0, 1],
                 [-1, -1, sqrt(2)],
                 [-1, 1, sqrt(2)],
                 [1, -1, sqrt(2)],

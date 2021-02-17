@@ -9,7 +9,7 @@ import numpy as np
 import random
 import time
 
-w = World(12, 12, 0.1)
+w = World(12, 12, 0.2)
 campf = CooperativeAStar(w)
 agents_labels = ["A", "B", "C", "D", "E"]
 for label in agents_labels:

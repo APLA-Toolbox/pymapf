@@ -99,7 +99,7 @@ class AStar:
                     self.nodes[child_node.pos] = child_node
                     self.opened_nodes += 1
         logging.warning("Path not found for agent [%s]" % str(self.agent.ident))
-        return []
+        return [self.start.state]
 
     def get_successors(self, parent: Node) -> List[Node]:
         """
@@ -116,7 +116,9 @@ class AStar:
                 continue
 
             if self.agent.in_conflict(
-                State(pos_x, pos_y, parent.t + 1), self.global_paths
+                State(parent.pos_x, parent.pos_y, parent.t),
+                State(pos_x, pos_y, parent.t+1), 
+                self.global_paths
             ):
                 continue
 
