@@ -117,8 +117,8 @@ class AStar:
 
             if self.agent.in_conflict(
                 State(parent.pos_x, parent.pos_y, parent.t),
-                State(pos_x, pos_y, parent.t+1), 
-                self.global_paths
+                State(pos_x, pos_y, parent.t + 1),
+                self.global_paths,
             ):
                 continue
 

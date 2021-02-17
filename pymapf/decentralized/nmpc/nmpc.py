@@ -21,7 +21,8 @@ import coloredlogs
 
 # import threading
 import logging
-logging.getLogger('matplotlib').setLevel(logging.WARNING)
+
+logging.getLogger("matplotlib").setLevel(logging.WARNING)
 
 
 class MultiAgentNMPC:

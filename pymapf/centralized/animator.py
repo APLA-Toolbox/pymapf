@@ -14,7 +14,8 @@ import numpy as np
 from matplotlib import animation
 import math
 import logging
-logging.getLogger('matplotlib').setLevel(logging.WARNING)
+
+logging.getLogger("matplotlib").setLevel(logging.WARNING)
 
 Colors = ["skyblue", "blue", "orange"]
 

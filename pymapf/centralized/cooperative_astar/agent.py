@@ -5,6 +5,7 @@ To do: add radius
 
 import logging
 
+
 class Agent:
     def __init__(
         self, ident, init_pos, goal_pos, allow_diagonals=False, nodes_dict=None
@@ -25,7 +26,10 @@ class Agent:
 
             try:
                 if future_state.x == val[-1].x and future_state.y == val[-1].y:
-                    logging.debug("Found conflict between agent %s and agent %s" % (self.ident, key))
+                    logging.debug(
+                        "Found conflict between agent %s and agent %s"
+                        % (self.ident, key)
+                    )
                     return True
             except BaseException as e:
                 logging.debug("Agent %s path is empty: %s" % (key, str(e)))
@@ -43,7 +47,10 @@ class Agent:
 
             for c in conflicts:
                 if c in val:
-                    logging.warning("Found conflict between agent %s and agent %s" % (self.ident, key))
+                    logging.warning(
+                        "Found conflict between agent %s and agent %s"
+                        % (self.ident, key)
+                    )
                     self.conflicts_found += 1
                     return True
         return False
