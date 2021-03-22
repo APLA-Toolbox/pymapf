@@ -22,7 +22,7 @@ jobs:
         run: |
           black .
       - name: Commit changes
-        uses: stefanzweifel/git-auto-commit-action@v4.9.1
+        uses: stefanzweifel/git-auto-commit-action@v4.9.2
         with:
           commit_message: Apply formatting changes
           branch: main
