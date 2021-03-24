@@ -108,13 +108,14 @@ sim.visualize("filename_test_2", 10, 10)
 
 If you use the project in your work, please consider citing it with:
 ```
-@misc{pymapf,
-  author = {Erwin Lejeune},
-  title = {PyMAPF: a python library for multi-agent pathfinding},
-  year = {2021},
-  publisher = {GitHub},
-  journal = {GitHub repository},
-  howpublished = {\url{https://github.com/APLA-Toolbox/pymapf}}
+@misc{https://doi.org/10.13140/rg.2.2.14030.28486,
+  doi = {10.13140/RG.2.2.14030.28486},
+  url = {http://rgdoi.net/10.13140/RG.2.2.14030.28486},
+  author = {Erwin Lejeune and Sampreet Sarkar},
+  language = {en},
+  title = {Survey of the Multi-Agent Pathfinding Solutions},
+  publisher = {Unpublished},
+  year = {2021}
 }
 ```
 
