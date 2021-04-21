@@ -40,9 +40,9 @@ Loved the project? Please consider [donating](https://www.buymeacoffee.com/dq01a
 - 🖥️ Supported on Ubuntu
 - 🎌 Built with Python
 - 🔎 Reactive Distributed Planners (Nonlinear Model Predictive Control, Velocity Obstacles)
-- 🧭 Centralized Planners (Incoming...)
+- 🧭 Centralized Planners (Space-Time A*)
 - 📊 Benchmark Tools (Incoming...)
-- 🍻 Maintained (Incoming: Enhanced Conflict-Based Search, Cooperative A*, Local-Repair A*, Replanning RRT*...)
+- 🍻 Maintained (Incoming: Enhanced Conflict-Based Search, Local-Repair A*, Replanning RRT*...)
 
 <div align="center">
     
