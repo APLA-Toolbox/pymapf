@@ -1,5 +1,5 @@
 
-numpy==1.21.4
+numpy==1.22.0
 scipy==1.7.2
 coloredlogs==15.0.1
 matplotlib==3.5.0
