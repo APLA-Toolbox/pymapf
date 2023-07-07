@@ -1,6 +1,6 @@
 
 numpy==1.21.4
-scipy==1.7.2
+scipy==1.10.0
 coloredlogs==15.0.1
 matplotlib==3.5.0
 termcolor==1.1.0
