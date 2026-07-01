@@ -36,13 +36,14 @@ Loved the project? Please consider [donating](https://www.buymeacoffee.com/dq01a
 
 ## Features 🌱
 
-- ✨ Built to be expanded: easy to add new planners
+- ✨ Built to be expanded: pluggable solver framework with a name-based registry
 - 🖥️ Supported on Ubuntu
 - 🎌 Built with Python
 - 🔎 Reactive Distributed Planners (Nonlinear Model Predictive Control, Velocity Obstacles)
-- 🧭 Centralized Planners (Space-Time A*)
+- 🧭 Centralized Planners (Space-Time A*, Prioritized Planning, Conflict-Based Search)
+- 🧩 Pluggable heuristics (manhattan, euclidean, chebyshev, octile) and deterministic maps
 - 📊 Benchmark Tools (Incoming...)
-- 🍻 Maintained (Incoming: Enhanced Conflict-Based Search, Local-Repair A*, Replanning RRT*...)
+- 🍻 Maintained (Incoming: Local-Repair A*, Replanning RRT*...)
 
 <div align="center">
     
@@ -103,6 +104,41 @@ sim.register_agent("c3po", Position(10, 7), Position(5, 0))
 sim.run_simulation()
 sim.visualize("filename_test_2", 10, 10)
 ```
+
+### Centralized MAPF framework 🧭
+
+The `pymapf.core` package provides an algorithm-agnostic framework and
+`pymapf.algorithms` ships two classic centralized solvers that register
+themselves by name. Build an explicit (deterministic) map, describe the agents,
+and pick a solver — `"cbs"` (Conflict-Based Search, optimal in sum-of-costs) or
+`"prioritized"` (Prioritized Planning, fast).
+
+Cells use `(row, col)` coordinates; a truthy grid value marks an obstacle.
+
+```python
+import pymapf
+
+grid = pymapf.GridMap([
+    [0, 0, 0],
+    [0, 1, 0],   # a wall in the middle
+    [0, 0, 0],
+])
+problem = pymapf.MAPFProblem(grid, [
+    pymapf.Agent("a", start=(0, 0), goal=(2, 2)),
+    pymapf.Agent("b", start=(2, 0), goal=(0, 2)),
+])
+
+print(pymapf.available_solvers())          # ['cbs', 'prioritized']
+
+solution = pymapf.solve(problem, "cbs")    # or "prioritized"
+print(solution.sum_of_costs, solution.makespan, solution.is_valid())
+for name, path in solution.paths.items():
+    print(name, path)                       # path[t] is the cell at timestep t
+```
+
+Solvers are configurable (e.g. `pymapf.solve(problem, "cbs", heuristic="euclidean")`)
+and you can plug in your own by subclassing `pymapf.MAPFSolver` and decorating it
+with `@pymapf.register_solver("my-algo")`.
 
 ## Cite 📰
 
