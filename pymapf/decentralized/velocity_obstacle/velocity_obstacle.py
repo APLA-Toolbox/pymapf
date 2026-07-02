@@ -1,5 +1,5 @@
 """
-Decentralized planning using velocity obstacles 
+Decentralized planning using velocity obstacles
 author: Erwin Lejeune (erwin.lejeune15@gmail.com)
 """
 

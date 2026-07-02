@@ -1,7 +1,6 @@
 from src.cooperative_astar import CooperativeAStar
 from src.world import World
 
-
 if __name__ == "__main__":
     # all coordinates are given in format [y,x]
     # import doctest

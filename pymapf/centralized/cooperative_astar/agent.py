@@ -1,5 +1,5 @@
 """
-An agent is defined by an Id, a start position and a goal position. 
+An agent is defined by an Id, a start position and a goal position.
 To do: add radius
 """
 
