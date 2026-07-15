@@ -40,9 +40,13 @@ class MAPFProblem:
             raise ValueError("agent names must be unique")
         for a in self.agents:
             if not self.grid.is_free(a.start):
-                raise ValueError("agent %r start %s is blocked/out of bounds" % (a.name, a.start))
+                raise ValueError(
+                    "agent %r start %s is blocked/out of bounds" % (a.name, a.start)
+                )
             if not self.grid.is_free(a.goal):
-                raise ValueError("agent %r goal %s is blocked/out of bounds" % (a.name, a.goal))
+                raise ValueError(
+                    "agent %r goal %s is blocked/out of bounds" % (a.name, a.goal)
+                )
 
 
 class Constraints:

@@ -43,7 +43,9 @@ def space_time_astar(
     # the number of free cells plus the last constraint time. Beyond that the
     # instance is unsolvable for this agent.
     last_constraint_t = max(
-        [t for (_, t) in constraints.vertex] + [t for (_, _, t) in constraints.edge] + [0]
+        [t for (_, t) in constraints.vertex]
+        + [t for (_, _, t) in constraints.edge]
+        + [0]
     )
     if max_timestep is None:
         max_timestep = grid.free_cells + last_constraint_t + 1

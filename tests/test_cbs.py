@@ -13,7 +13,9 @@ def _open(n):
 
 def test_resolves_vertex_conflict_optimally():
     # Both agents' independent shortest paths cross the centre cell (1,1) at t=1.
-    prob = MAPFProblem(_open(3), [Agent("a", (0, 1), (2, 1)), Agent("b", (1, 0), (1, 2))])
+    prob = MAPFProblem(
+        _open(3), [Agent("a", (0, 1), (2, 1)), Agent("b", (1, 0), (1, 2))]
+    )
     sol = ConflictBasedSearch().solve(prob)
     assert sol is not None
     assert sol.is_valid()
@@ -39,11 +41,15 @@ def test_single_agent_shortest_path():
 
 def test_unsolvable_returns_none():
     corridor = GridMap([[0, 0, 0, 0, 0]])
-    prob = MAPFProblem(corridor, [Agent("a", (0, 0), (0, 4)), Agent("b", (0, 4), (0, 0))])
+    prob = MAPFProblem(
+        corridor, [Agent("a", (0, 0), (0, 4)), Agent("b", (0, 4), (0, 0))]
+    )
     assert ConflictBasedSearch().solve(prob) is None
 
 
 def test_expansion_cap_returns_none():
-    prob = MAPFProblem(_open(3), [Agent("a", (0, 1), (2, 1)), Agent("b", (1, 0), (1, 2))])
+    prob = MAPFProblem(
+        _open(3), [Agent("a", (0, 1), (2, 1)), Agent("b", (1, 0), (1, 2))]
+    )
     # A cap of 1 cannot get past the root conflict.
     assert ConflictBasedSearch(max_expansions=1).solve(prob) is None

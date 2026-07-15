@@ -40,10 +40,7 @@ class GridMap:
         # Store only the blocked cells; grids are usually mostly free so a set
         # of obstacles is compact and gives O(1) membership tests.
         self._blocked = frozenset(
-            (r, c)
-            for r, row in enumerate(rows)
-            for c, value in enumerate(row)
-            if value
+            (r, c) for r, row in enumerate(rows) for c, value in enumerate(row) if value
         )
 
     @classmethod
@@ -83,7 +80,11 @@ class GridMap:
         if allow_diagonals:
             for dr, dc in _DIAGONAL:
                 n = (r + dr, c + dc)
-                if self.is_free(n) and self.is_free((r + dr, c)) and self.is_free((r, c + dc)):
+                if (
+                    self.is_free(n)
+                    and self.is_free((r + dr, c))
+                    and self.is_free((r, c + dc))
+                ):
                     result.append(n)
         return result
 
