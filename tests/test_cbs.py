@@ -1,0 +1,49 @@
+import sys
+from os import path
+
+sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
+
+from pymapf.algorithms.cbs import ConflictBasedSearch
+from pymapf.core import Agent, GridMap, MAPFProblem
+
+
+def _open(n):
+    return GridMap([[0] * n for _ in range(n)])
+
+
+def test_resolves_vertex_conflict_optimally():
+    # Both agents' independent shortest paths cross the centre cell (1,1) at t=1.
+    prob = MAPFProblem(_open(3), [Agent("a", (0, 1), (2, 1)), Agent("b", (1, 0), (1, 2))])
+    sol = ConflictBasedSearch().solve(prob)
+    assert sol is not None
+    assert sol.is_valid()
+    # Optimal sum-of-costs: one agent detours/waits one step -> 2 + 3 = 5.
+    assert sol.sum_of_costs == 5
+
+
+def test_resolves_edge_swap_conflict():
+    # 2x3 grid so agents can dodge into the other row instead of swapping.
+    prob = MAPFProblem(
+        GridMap([[0, 0, 0], [0, 0, 0]]),
+        [Agent("a", (0, 0), (0, 2)), Agent("b", (0, 2), (0, 0))],
+    )
+    sol = ConflictBasedSearch().solve(prob)
+    assert sol is not None and sol.is_valid()
+
+
+def test_single_agent_shortest_path():
+    prob = MAPFProblem(_open(4), [Agent("a", (0, 0), (3, 3))])
+    sol = ConflictBasedSearch().solve(prob)
+    assert sol is not None and sol.sum_of_costs == 6  # Manhattan distance
+
+
+def test_unsolvable_returns_none():
+    corridor = GridMap([[0, 0, 0, 0, 0]])
+    prob = MAPFProblem(corridor, [Agent("a", (0, 0), (0, 4)), Agent("b", (0, 4), (0, 0))])
+    assert ConflictBasedSearch().solve(prob) is None
+
+
+def test_expansion_cap_returns_none():
+    prob = MAPFProblem(_open(3), [Agent("a", (0, 1), (2, 1)), Agent("b", (1, 0), (1, 2))])
+    # A cap of 1 cannot get past the root conflict.
+    assert ConflictBasedSearch(max_expansions=1).solve(prob) is None
