@@ -37,7 +37,7 @@ def reject_constant(name):
 
 @pytest.mark.parametrize("path", published_json(), ids=os.path.basename)
 def test_published_json_is_valid_json(path):
-    with open(path, encoding='utf-8') as handle:
+    with open(path, encoding="utf-8") as handle:
         # parse_constant fires for NaN, Infinity and -Infinity -- the three
         # things Python emits happily and no JSON parser accepts.
         json.load(handle, parse_constant=reject_constant)
@@ -45,7 +45,7 @@ def test_published_json_is_valid_json(path):
 
 def test_the_benchmark_the_learning_section_reads_is_present_and_shaped():
     path = os.path.join(ASSETS, "rl-benchmark.json")
-    with open(path, encoding='utf-8') as handle:
+    with open(path, encoding="utf-8") as handle:
         report = json.load(handle, parse_constant=reject_constant)
 
     assert report["settings"], "the learning section renders from this list"
@@ -64,7 +64,7 @@ def test_the_benchmark_the_learning_section_reads_is_present_and_shaped():
 
 
 def test_every_asset_the_page_references_exists():
-    with open(os.path.join(DOCS, "index.html"), encoding='utf-8') as handle:
+    with open(os.path.join(DOCS, "index.html"), encoding="utf-8") as handle:
         page = handle.read()
 
     referenced = set()
