@@ -132,8 +132,8 @@ def test_unit_speed_never_exceeds_the_discrete_makespan(warehouse):
     # suboptimal planner's plan does. Every agent settles no later than its
     # own discrete path length, and at least one move takes its full second.
     assert trajectories.makespan <= solution.makespan + 1e-9
-    for agent, path in solution.paths.items():
-        assert trajectories[agent].arrival_time <= len(path) - 1 + 1e-9
+    for agent, discrete_path in solution.paths.items():
+        assert trajectories[agent].arrival_time <= len(discrete_path) - 1 + 1e-9
     assert trajectories.makespan >= 1.0
 
 
