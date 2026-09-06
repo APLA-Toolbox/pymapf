@@ -8,6 +8,44 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`pymapf.kinodynamic`** -- discrete plans become trajectories a robot can
+  follow. `plan_trajectories(solution, limits=KinematicLimits(v_max, a_max,
+  safety_distance))` keeps the order in which the plan has agents visit each
+  vertex, discards its unit-step timing, and re-derives the timing under
+  physical limits as the longest path through a simple temporal network
+  (Hönig et al. 2016, MAPF-POST). Moves are rest-to-rest trapezoidal profiles,
+  so the speed and acceleration limits hold at every instant; the tests check
+  both by finite differences. Rotations on a cycle work, and a margin too long
+  for one raises `InfeasibleScheduleError` rather than a schedule that never
+  finishes. Heterogeneous fleets pass `limits_by_agent`; general graphs take
+  coordinates from `ExplicitGraph.positions`. Pure standard library.
+  - The safety margin is derived **per hand-over**, which the paper does not
+    do. `required_margin` simulates the leaving and arriving moves under
+    their actual profiles and the angle between them and finds the smallest
+    delay at which the pair never comes within `safety_distance`. The
+    full-speed rule it replaces let a right-angle hand-over between
+    rest-to-rest agents get within 0.199 of a 0.5 that was asked for; with the
+    derived margin the sampled minimum over a whole warehouse plan is 0.500,
+    with or without an acceleration limit.
+  - `TrajectorySet.min_separation()` samples what the schedule actually
+    achieved in space, because the model covers hand-overs at shared vertices
+    and not two agents passing on adjacent ones -- on a unit grid the latter
+    keep one cell, and above that the sample is the check.
+- **Three-dimensional grids.** `VoxelGrid` is a stack of layers with the same
+  two-question interface as `GridMap` -- *is this free?*, *what is adjacent?* --
+  so every solver, the heuristics, the benchmark harness and the trajectory
+  scheduler run on a volume unchanged; the tests parametrise over every
+  registered solver to prove it. 6-connected by default, 26-connected with
+  `allow_diagonals`, under the planar corner-cutting rule generalised to every
+  face, edge and corner of the box a diagonal cuts through. The geometric
+  heuristics take any dimension. Three families join the registry --
+  `empty_volume`, `random_blocks`, `stacked_floors` (floors joined by a few
+  shafts: the 3D bottleneck) -- and `to_ascii` renders a volume one layer at a
+  time. `viz.plot_solution_3d` draws routes threading blocked voxels; the
+  planar plotters refuse a volume and say which function to use instead, and
+  so does `MAPFEnv`, which stays planar. Measured: eight agents in a 6x6
+  footprint cost CBS a median of 794 expansions on the plane and 3 with three
+  layers, because the third axis is a way around.
 - **Decentralized navigation** (`pymapf.swarm.navigation`): four control laws
   in which every agent has a goal of its own and decides from what it can
   see -- **ORCA** (van den Berg et al. 2011), **buffered Voronoi cells** (Zhou
