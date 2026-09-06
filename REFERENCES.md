@@ -18,11 +18,13 @@ at the end.
 - [Fast suboptimal and anytime MAPF](#fast-suboptimal-and-anytime-mapf)
 - [Learning-based MAPF](#learning-based-mapf) *(surveyed, not implemented)*
 - [Variants and extensions](#variants-and-extensions) *(surveyed, not implemented)*
+- [Kinodynamic execution](#kinodynamic-execution)
 - [Decentralized flocking](#decentralized-flocking)
 - [Formation control](#formation-control)
 - [Decentralized coverage](#decentralized-coverage)
 - [Swarm distribution control](#swarm-distribution-control)
 - [Reactive collision avoidance](#reactive-collision-avoidance)
+- [Decentralized navigation](#decentralized-navigation)
 - [Reinforcement learning](#reinforcement-learning)
 - [Implementation notes](#implementation-notes)
 
@@ -118,7 +120,16 @@ Surveyed in `.docs/survey.md`; not implemented.
 | Anonymous / target assignment (TSWAP) | Okumura, K.; and Défago, X. 2022. *Solving simultaneous target assignment and path planning efficiently with time-independent execution.* ICAPS 2022: 270–278. |
 | Robust/k-robust plans | Atzmon, D.; Stern, R.; Felner, A.; Wagner, G.; Barták, R.; and Zhou, N.-F. 2020. *Robust multi-agent path finding and executing.* JAIR 67: 549–579. |
 | Execution under uncertainty (ADG) | Hönig, W.; Kiesel, S.; Tinka, A.; Durham, J. W.; and Ayanian, N. 2019. *Persistent and robust execution of MAPF schedules in warehouses.* IEEE RA-L 4(2): 1125–1131. |
-| MAPF with kinematic constraints | Hönig, W.; Kumar, T. K. S.; Cohen, L.; Ma, H.; Xu, H.; Ayanian, N.; and Koenig, S. 2016. *Multi-agent path finding with kinematic constraints.* ICAPS 2016: 477–485. |
+
+## Kinodynamic execution
+
+Implemented in `pymapf/kinodynamic/`.
+
+| Work | Module | Reference |
+|---|---|---|
+| **MAPF-POST: plans under kinematic constraints** | `schedule.plan_trajectories` | Hönig, W.; Kumar, T. K. S.; Cohen, L.; Ma, H.; Xu, H.; Ayanian, N.; and Koenig, S. 2016. *Multi-agent path finding with kinematic constraints.* ICAPS 2016: 477–485. |
+| Simple temporal networks | `schedule._longest_path` | Dechter, R.; Meiri, I.; and Pearl, J. 1991. *Temporal constraint networks.* Artificial Intelligence 49(1–3): 61–95. |
+| Trapezoidal velocity profiles | `trajectory.MotionProfile` | Standard; see e.g. Biagiotti, L.; and Melchiorri, C. 2008. *Trajectory Planning for Automatic Machines and Robots.* Springer, ch. 3. |
 
 ## Decentralized flocking
 
@@ -196,8 +207,21 @@ Implemented in `pymapf/decentralized/` (pre-existing modules).
 |---|---|---|
 | Velocity obstacles | `decentralized.velocity_obstacle` | Fiorini, P.; and Shiller, Z. 1998. *Motion planning in dynamic environments using velocity obstacles.* IJRR 17(7): 760–772. |
 | Reciprocal velocity obstacles | *related* | van den Berg, J.; Lin, M.; and Manocha, D. 2008. *Reciprocal velocity obstacles for real-time multi-agent navigation.* ICRA 2008: 1928–1935. |
-| ORCA | *related* | van den Berg, J.; Guy, S. J.; Lin, M.; and Manocha, D. 2011. *Reciprocal n-body collision avoidance.* Robotics Research (ISRR 2009), Springer: 3–19. |
 | Nonlinear MPC for multi-robot motion | `decentralized.nmpc` | Kamel, M.; Alonso-Mora, J.; Siegwart, R.; and Nieto, J. 2017. *Robust collision avoidance for multiple micro aerial vehicles using nonlinear model predictive control.* IROS 2017: 236–243. |
+
+## Decentralized navigation
+
+Implemented in `pymapf/swarm/navigation.py` as `NavigationBehavior` subclasses:
+every agent has a goal of its own, and decides from what it can see.
+
+| Method | Class | Reference |
+|---|---|---|
+| **ORCA** | `ORCA` | van den Berg, J.; Guy, S. J.; Lin, M.; and Manocha, D. 2011. *Reciprocal n-body collision avoidance.* Robotics Research (ISRR 2009), Springer: 3–19. |
+| **Buffered Voronoi cells** | `BufferedVoronoi` | Zhou, D.; Wang, Z.; Bandyopadhyay, S.; and Schwager, M. 2017. *Fast, on-line collision avoidance for dynamic vehicles using buffered Voronoi cells.* IEEE RA-L 2(2): 1047–1054. |
+| **Artificial potential fields** | `PotentialField` | Khatib, O. 1986. *Real-time obstacle avoidance for manipulators and mobile robots.* IJRR 5(1): 90–98. |
+| **Social forces** | `SocialForce` | Helbing, D.; and Molnár, P. 1995. *Social force model for pedestrian dynamics.* Physical Review E 51(5): 4282–4286. |
+| Anisotropic social forces | `SocialForce(lambda_=...)` | Helbing, D.; Farkas, I.; and Vicsek, T. 2000. *Simulating dynamical features of escape panic.* Nature 407: 487–490. |
+| Incremental LP for the velocity choice | `project_onto_polytope` | Seidel, R. 1991. *Small-dimensional linear programming and convex hulls made easy.* Discrete & Computational Geometry 6: 423–434. |
 
 ## Reinforcement learning
 
@@ -437,3 +461,44 @@ Raising the entropy coefficient does not help either — 0.01, 0.03 and 0.05 giv
 52%, 53% and 53% final solve rate. What does explain the training curve peaking
 near 100% and settling near 50% is the *evaluation mode*, not the training: see
 the greedy-versus-sampled result in `.docs/survey.md` § 7.7.
+
+**MAPF-POST** keeps the paper's structure — visit order from the discrete
+plan, timing from a simple temporal network solved as a longest path — with
+three departures. Motion is rest-to-rest at every vertex (trapezoidal or
+triangular profiles), where the paper permits any speed within limits at the
+cost of an upper bound per move and an LP; the consequence is a slower schedule
+that is never an unsafe one. There is no upper bound on dwell, so an agent may
+wait indefinitely for a slower one. And the safety margin is not the paper's
+single interval: `required_margin` derives it per hand-over by simulating the
+leaving and arriving moves under their actual profiles and the angle between
+them, because a full-speed rule lets a right-angle hand-over between
+rest-to-rest agents get within 0.2 of a 0.5 that was asked for. The remaining
+gap is passing on *adjacent* vertices without a shared one, which the model
+does not see; on a unit grid that keeps one cell, and
+`TrajectorySet.min_separation` samples the rest.
+
+**ORCA** builds the velocity obstacle and the reciprocal half-plane as in the
+paper, in any dimension: the obstacle is rotationally symmetric about the line
+between two agents, so the leg projection is done in the plane of that line
+and the relative velocity. The velocity is selected by the same incremental
+construction as RVO2's linear programs, generalised to *n* dimensions by
+recursion (`project_onto_polytope`), so it is exact. One departure: when the
+constraint set is empty, RVO2's third program minimises the worst violation of
+the agent half-planes; here they are relaxed by a common margin found by
+bisection until the set is non-empty -- the same objective, met less exactly.
+Obstacle planes are never relaxed. The preferred velocity carries a seeded
+perturbation of 1e-3 (RVO2's circle demo uses 1e-4) so that exactly
+symmetric encounters do not tie forever; a twelve-agent ring still deadlocks
+with it, and a test records that.
+
+**Buffered Voronoi cells** are built and the closest point to the goal found
+exactly, as in the paper, with static circular obstacles entering as
+half-spaces tangent to the obstacle inflated by the safety radius (the paper
+bounds cells by obstacle Voronoi regions). The deadlock remedy is the paper's
+sidestep in spirit -- aim beside the goal when the cell's closest point is the
+agent's own position -- and, as measured here, it helps a little without
+resolving a symmetric crossing. Collision-freedom holds in every run.
+
+**Potential fields** and **social forces** are the textbook laws with the
+usual gains and no guarantee; the potential-field local minimum behind an
+obstacle is reproduced in a test rather than worked around.

@@ -42,14 +42,17 @@ Loved the project? Please consider [donating](https://www.buymeacoffee.com/dq01a
 - 🧭 Centralized planners: **CBS**, **Weighted CBS**, Prioritized Planning, **PIBT**, **LaCAM**, **MAPF-LNS** — every one referenced in [REFERENCES.md](REFERENCES.md)
 - 🕸️ Works on **arbitrary graphs**, not just grids (roadmaps, warehouse topologies, PRMs)
 - 🐦 **Decentralized swarm control**, all object-oriented and registry-based: 10 flocking models (boids, Vicsek, Cucker–Smale, Olfati-Saber, proximal, active-elastic, acceleration-based, Gaussian-kernel, minimalistic, distributed-3D), 5 coverage controllers over 6 pluggable domains, and Gaussian-mixture distribution control
+- 🧭 **Decentralized navigation** with a goal per agent: ORCA, buffered Voronoi cells, potential fields and social forces, in any dimension, with the deadlocks they are known for recorded in tests rather than hidden
 - 📐 **Formation control** on the displacement / distance / bearing taxonomy, with exact Hungarian slot assignment and a rigidity test that tells you when a target shape is holdable at all
 - 🧠 **Multi-agent RL** (`pymapf.rl`): the MAPF instances as a PettingZoo-parallel environment, IPPO and MAPPO that train with **no dependency beyond numpy**, and a benchmark scored against the *optimal* CBS solution rather than another heuristic — plus a **lifelong** mode where agents are re-tasked on arrival and the score is throughput, with PIBT and replanning planners as baselines run through the same loop
 - 🔬 **[Extended survey](.docs/survey.md)** of MAPF 2021→2026 plus an experimental section with measured (and negative) results — and a [second edition](.docs/survey-v2.md) that revises the framing around lifelong MAPF, guidance-graph optimisation and learning-inside-search, with the [literature scan](.docs/research-notes.md) behind it
 - 🧩 Pluggable solver framework with a name-based registry, pluggable heuristics and deterministic maps
 - 🔭 **Observable search**: every solver streams `SearchEvent`s — record them, animate them, or watch them live
-- 🗺️ **Six reproducible scenario families** (empty room, random obstacles, warehouse, maze, bottleneck, corner swap) plus ASCII maps
+- 🗺️ **Nine reproducible scenario families** — six planar (empty room, random obstacles, warehouse, maze, bottleneck, corner swap) and three volumetric (empty volume, random blocks, stacked floors) — plus ASCII maps
+- 🧊 **3D**: `VoxelGrid` is a stack of layers with 6- or 26-connectivity, and every solver, heuristic and the trajectory scheduler run on it unchanged
 - 📊 **Benchmark harness** with CSV/JSON export and ready-made charts
 - 🎬 **Visualisation**: static plots, congestion heatmaps, space-time cubes, timelines, GIF/MP4 animations, live views (window *or* terminal)
+- 🚚 **From plans to trajectories**: MAPF-POST-style scheduling turns any discrete plan into time-parameterised, speed- and acceleration-limited trajectories with a per-hand-over safety margin derived from the actual geometry
 - 🔎 Reactive distributed planners (Nonlinear Model Predictive Control, Velocity Obstacles)
 - 🪶 Zero runtime dependencies in the core — the solvers are pure standard library
 
@@ -179,6 +182,39 @@ scenario = from_ascii("""
 ##########
 """)
 ```
+
+### Three dimensions 🧊
+
+A `VoxelGrid` is a stack of layers; a cell is `(layer, row, col)`. The solvers
+never look at a map's shape — they ask *is this vertex free?* and *what is
+adjacent to it?* — so every one of them, the heuristics, the benchmark harness
+and the trajectory scheduler run on a volume unchanged.
+
+```python
+scenario = pymapf.build_scenario("stacked_floors", floors=3, shafts=2, n_agents=6)
+solution = pymapf.solve(scenario.to_problem(), "cbs")
+
+viz.plot_solution_3d(solution, scenario)         # routes threading the floors
+print(pymapf.scenarios.to_ascii(scenario))       # one block per layer
+```
+
+Connectivity is 6-connected by default and 26-connected with
+`allow_diagonals=True`, under the planar corner-cutting rule generalised: a
+move that changes several coordinates at once is allowed only if every
+axis-aligned part of it is free, so nothing squeezes between two obstacles
+that touch at an edge or a corner in any orientation.
+
+Three volumetric families: `empty_volume`, `random_blocks`, and
+`stacked_floors` — solid floors joined by a few vertical shafts, the 3D
+`bottleneck`, where agents on different floors never interact until they all
+need the same column. The third axis is a way *around*: two agents swapping
+along a one-wide corridor deadlock on a plane and pass with a layer above.
+Measured with CBS on eight agents in a 6×6 footprint, the plane costs a median
+of 794 expansions and the same footprint with three layers costs 3.
+
+The learning layer stays planar for now — `MAPFEnv` says so rather than
+failing three calls in — and the planar plotters refuse a volume and point at
+`plot_solution_3d`.
 
 ### Watching the search
 
@@ -476,6 +512,55 @@ Measured on the 8-agent warehouse over five seeded episodes of 496 steps:
 The one-step rule matches the replanning solver's throughput at a sixth of
 the cost — which is the argument the lifelong literature makes for it, and
 now a number this repository produces.
+
+### Decentralized navigation 🧭
+
+The flocking and formation behaviors share one waypoint. These give every
+agent a destination of its own and ask it to get there from local information
+only — the problem a fleet faces once the central planner is gone.
+
+```python
+from pymapf.swarm import SwarmSimulator, SwarmParams, circle_swap
+
+state, goals = circle_swap(n=8, radius=10.0)          # everyone crosses the centre
+params = SwarmParams(separation_distance=1.0, cruise_speed=1.5)
+result = SwarmSimulator("orca", initial=state, params=params, goals=goals).run(steps=600)
+
+result.metrics.collisions              # 0
+min(result.metrics.min_distance)       # >= 1.0, the separation asked for
+```
+
+Four laws, two ideas of what "safe" means:
+
+| Law | Name | Kind | What it guarantees |
+|---|---|---|---|
+| ORCA (van den Berg et al. 2011) | `"orca"` | constraint | no collision while the velocity set is non-empty |
+| Buffered Voronoi cells (Zhou et al. 2017) | `"buffered_voronoi"` | constraint | no collision, with no velocity information at all |
+| Potential fields (Khatib 1986) | `"potential_field"` | force | nothing |
+| Social forces (Helbing & Molnár 1995) | `"social_force"` | force | nothing |
+
+All four are written for any dimension — ORCA's velocity obstacle is
+rotationally symmetric about the line between two agents, so its geometry
+lives in a plane whatever the ambient space — and the velocity is chosen by
+an exact projection onto the constraint set (RVO2's incremental linear
+programs, generalised to *n* dimensions by recursion) rather than an
+iterative one. That distinction found a bug: an iterative projection that
+stalled short of the cell let agents brush to 0.67 of a 1.0 separation; the
+exact one holds 1.02 in every run.
+
+What was measured, on the circle swap with separation 1.0:
+
+- **ORCA** never collides, and arrives with 4, 8 and 24 agents in 2D and 16
+  on a sphere. Twelve agents form a ring it does not break, with or without
+  tie-breaking noise — the symmetric deadlock the literature describes.
+- **Buffered Voronoi** never collides, in 2D or 3D, and deadlocks on any
+  symmetric crossing, as its paper says. It passes an offset pair and
+  staggered lanes.
+- **Potential fields** and **social forces** solve the 8- and 12-agent swaps
+  outright, and the potential field parks in the local minimum behind an
+  obstacle exactly where Khatib said it would.
+
+Each of those is a test, including the failures.
 
 ### Reactive planners
 
