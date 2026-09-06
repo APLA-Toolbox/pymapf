@@ -32,7 +32,15 @@ from .algorithms import (
     register_algorithm,
 )
 from .env import DIAGONAL_ACTIONS, ORTHOGONAL_ACTIONS, MAPFEnv
-from .evaluate import EvaluationResult, compare, evaluate, rollout
+from .baselines import PIBTPolicy, RandomPolicy, ReplanPolicy
+from .evaluate import (
+    EvaluationResult,
+    LifelongResult,
+    compare,
+    compare_lifelong,
+    evaluate,
+    rollout,
+)
 from .networks import (
     ActorCritic,
     NumpyActorCritic,
@@ -106,5 +114,10 @@ __all__ = [
     "rollout",
     "evaluate",
     "compare",
+    "compare_lifelong",
+    "LifelongResult",
+    "PIBTPolicy",
+    "ReplanPolicy",
+    "RandomPolicy",
     "EvaluationResult",
 ]

@@ -71,9 +71,13 @@ worth reading here: it enumerates what benchmark LMAPF still abstracts away —
 kinematics, task assignment, robot failure — and is candid that these are not
 details.
 
-**Where this repository stands.** Everything here is one-shot. The RL
-environment already draws a fresh instance on reset, so a lifelong mode is a
-small change rather than a rewrite; it is the first item in §8.
+**Where this repository stands.** The RL environment has a lifelong mode
+(`MAPFEnv(lifelong=True)`): agents are re-tasked on arrival, the episode runs
+to a horizon, and the score is throughput. Planners run through the same loop
+as a policy -- PIBT re-deciding every step, or any solver replanning on each
+re-tasking -- so the learned and the planned are scored on the same sequence
+of tasks. The one-shot solvers and the experimental section are still
+one-shot; measuring them under the lifelong objective is the open item now.
 
 ## 3. Search: LaCAM as an engineering programme
 
@@ -228,10 +232,12 @@ instance would have supported either story confidently.
 
 The first edition's list was about making solvers better. This one is not.
 
-1. **Throughput, not cost.** Until this repository has a lifelong mode it is
-   measuring a quantity the field has moved past. The RL environment already
-   re-draws instances on reset, so this is a wrapper, not a rewrite — and it is
-   the single highest-value thing on this list.
+1. **Throughput, not cost -- for the solvers.** The RL environment now has
+   the lifelong mode and the throughput metric (§2). What remains is the
+   experimental section: every solver number in §7 is one-shot, and the
+   planners the lifelong harness runs (PIBT stepping, replanning) are the
+   baselines, not the subject. Re-running §7 under throughput is the next
+   measurement worth making.
 2. **A guidance-graph optimiser.** `ExplicitGraph` already carries the weights;
    the optimiser is missing. Orthogonal to every solver already implemented, so
    the gains would compose with all of them.

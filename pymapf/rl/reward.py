@@ -168,37 +168,58 @@ class ShapedReward(SparseReward):
         self._finite_max: Dict[str, float] = {}
 
     def reset(self, env) -> None:
-        """Build one distance field per goal, once per episode.
+        """Warm the distance-field cache for the episode's starting goals.
 
-        Cached on the environment's instance identity: the goals only change
-        when the instance does, and a backward Dijkstra per agent per episode
-        would otherwise dominate the rollout cost.
+        Fields are cached **per goal cell** for the current grid rather than
+        per agent, because in a lifelong episode an agent's goal changes many
+        times and the potential must follow it -- shaping against the goal the
+        episode started with would reward walking back to it. On a small map
+        goals recur, so the cache also pays for itself across an episode.
         """
-        from pymapf.algorithms.search import distance_table
-
-        signature = env.instance_signature()
-        if getattr(self, "_signature", None) == signature and self._potentials:
-            return
-        self._signature = signature
-        self._potentials = {}
-        self._finite_max = {}
+        grid_id = id(env.grid)
+        if getattr(self, "_grid_id", None) != grid_id:
+            self._grid_id = grid_id
+            self._potentials = {}
+            self._finite_max = {}
+        self._env = env
         for agent in env.possible_agents:
+            self._table_for(env, env.goals[agent])
+
+    def _table_for(self, env, goal):
+        table = self._potentials.get(goal)
+        if table is None:
+            from pymapf.algorithms.search import distance_table
+
             # The backward Dijkstra behind `true_distance`, used directly: the
             # table is what we want, and it is goal-specific either way.
-            table = distance_table(env.grid, env.goals[agent], env.allow_diagonals)
-            self._potentials[agent] = table
+            table = distance_table(env.grid, goal, env.allow_diagonals)
+            self._potentials[goal] = table
             finite = [value for value in table.values() if value != float("inf")]
-            self._finite_max[agent] = float(max(finite)) if finite else 0.0
+            self._finite_max[goal] = float(max(finite)) if finite else 0.0
+        return table
 
-    def potential(self, agent: str, cell) -> float:
-        """``-distance to goal``, with unreachable cells clamped."""
-        table = self._potentials.get(agent)
+    def potential(self, agent: str, cell, goal=None) -> float:
+        """``-distance to goal``, with unreachable cells clamped.
+
+        ``goal`` defaults to the agent's current goal in the environment this
+        reward was last reset on.
+        """
+        env = getattr(self, "_env", None)
+        if goal is None:
+            if env is None:
+                return 0.0
+            goal = env.goals[agent]
+        table = (
+            self._table_for(env, goal)
+            if env is not None
+            else self._potentials.get(goal)
+        )
         if table is None:
             return 0.0
         distance = table.get(cell, float("inf"))
         if distance == float("inf"):
             # Worse than anywhere reachable, but finite.
-            distance = self._finite_max.get(agent, 0.0) + 1.0
+            distance = self._finite_max.get(goal, 0.0) + 1.0
         return -float(distance)
 
     def compute(
@@ -215,8 +236,13 @@ class ShapedReward(SparseReward):
         base = super().compute(
             env, agent, previous, current, blocked, collided, at_goal, was_at_goal
         )
-        shaping = self.gamma * self.potential(agent, current) - self.potential(
-            agent, previous
+        # The goal at the moment of this step: in a lifelong episode the env
+        # re-tasks the agent only *after* rewards are computed, so an arrival
+        # is shaped against the goal that was actually reached.
+        goal = env.goals[agent]
+        self._env = env
+        shaping = self.gamma * self.potential(agent, current, goal) - self.potential(
+            agent, previous, goal
         )
         return base + self.scale * shaping
 

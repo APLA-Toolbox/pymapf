@@ -84,6 +84,15 @@ class MAPFEnv:
             ``reset``. This is what makes a policy generalise rather than
             memorise one map, so it is on by default when a family name is
             given.
+        lifelong: an agent that reaches its goal is immediately given a new
+            one, drawn from the free cells it can reach that nobody else is
+            standing on or heading for. The episode never terminates -- it
+            runs to ``max_steps`` -- and the number that matters is
+            **throughput**, goals completed per step, reported in the episode
+            summary as ``throughput`` and ``goals_completed``. This is the
+            problem deployed fleets solve (Li et al. 2021, RHCR), and the
+            one-shot objective is not an approximation of it: sum-of-costs
+            is undefined when nothing terminates.
         scenario_kwargs: forwarded to :func:`pymapf.build_scenario` when
             ``randomise`` is drawing new instances.
     """
@@ -100,11 +109,13 @@ class MAPFEnv:
         seed: Optional[int] = None,
         observation_kwargs: Optional[dict] = None,
         reward_kwargs: Optional[dict] = None,
+        lifelong: bool = False,
         **scenario_kwargs,
     ):
         from pymapf import MAPFProblem, build_scenario
         from pymapf.scenarios import Scenario
 
+        self.lifelong = bool(lifelong)
         self._scenario_kwargs = dict(scenario_kwargs)
         self._family: Optional[str] = None
         self._problem = None
@@ -158,15 +169,21 @@ class MAPFEnv:
         self.allow_diagonals = problem.allow_diagonals
         self.possible_agents: List[str] = [agent.name for agent in problem.agents]
         self.starts: Dict[str, Cell] = {a.name: a.start for a in problem.agents}
-        self.goals: Dict[str, Cell] = {a.name: a.goal for a in problem.agents}
+        self._problem_goals: Dict[str, Cell] = {a.name: a.goal for a in problem.agents}
+        self.goals: Dict[str, Cell] = dict(self._problem_goals)
         self.actions = DIAGONAL_ACTIONS if self.allow_diagonals else ORTHOGONAL_ACTIONS
 
         if self._max_steps is not None:
             self.max_steps = int(self._max_steps)
+        elif self.lifelong:
+            # Room for several goals per agent: throughput measured over one
+            # crossing of the map is mostly the start-up transient.
+            self.max_steps = int(16 * (self.grid.height + self.grid.width))
         else:
             # Long enough that a competent policy is never truncated, short
             # enough that a hopeless one does not burn the rollout budget.
             self.max_steps = int(4 * (self.grid.height + self.grid.width))
+        self._components: Dict[Cell, frozenset] = {}
 
     @property
     def problem(self) -> "object":
@@ -206,6 +223,7 @@ class MAPFEnv:
             reward_kwargs=reward_kwargs,
             max_steps=self._max_steps,
             randomise=self.randomise,
+            lifelong=self.lifelong,
             **self._scenario_kwargs,
         )
 
@@ -225,6 +243,49 @@ class MAPFEnv:
             agent: [self.starts[agent]] for agent in self.possible_agents
         }
         self._collisions = 0
+        self.goals_completed = 0
+        # Lifelong re-tasking mutates goals; keep the instance's own so a
+        # reset restores them instead of the last goals handed out.
+        self.goals = {
+            agent: self._problem_goals[agent] for agent in self.possible_agents
+        }
+
+    # ------------------------------------------------------------------
+    # lifelong re-tasking
+    # ------------------------------------------------------------------
+    def _component(self, cell: Cell) -> frozenset:
+        """Free cells reachable from ``cell``, cached per instance."""
+        component = self._components.get(cell)
+        if component is None:
+            seen = {cell}
+            stack = [cell]
+            while stack:
+                current = stack.pop()
+                for neighbour in self.grid.neighbors(current, self.allow_diagonals):
+                    if neighbour not in seen:
+                        seen.add(neighbour)
+                        stack.append(neighbour)
+            component = frozenset(seen)
+            for member in component:
+                self._components[member] = component
+        return component
+
+    def _new_goal(self, agent: str) -> Cell:
+        """A fresh goal: reachable, free, and claimed by nobody.
+
+        Drawn from the environment's own RNG, so a seeded reset gives the same
+        sequence of tasks -- which is what makes two policies comparable on a
+        lifelong instance.
+        """
+        taken = set(self.goals.values()) | set(self.positions.values())
+        candidates = [
+            cell
+            for cell in sorted(self._component(self.positions[agent]))
+            if cell not in taken
+        ]
+        if not candidates:
+            return self.goals[agent]  # nowhere to send it; keep the current goal
+        return candidates[int(self._random.integers(len(candidates)))]
 
     # ------------------------------------------------------------------
     # spaces (PettingZoo calls these as methods)
@@ -298,7 +359,7 @@ class MAPFEnv:
             agent: previous[agent] == self.goals[agent]
             for agent in self.possible_agents
         }
-        solved = all(at_goal.values())
+        solved = all(at_goal.values()) and not self.lifelong
         truncated = self.step_count >= self.max_steps and not solved
 
         rewards = {
@@ -314,6 +375,15 @@ class MAPFEnv:
             )
             for agent in self.agents
         }
+        if self.lifelong:
+            # Rewards were computed against the goal that was reached; only
+            # now does the agent learn where it is going next, so the next
+            # observation already shows the new goal.
+            for agent in self.possible_agents:
+                if at_goal[agent]:
+                    self.goals_completed += 1
+                    self.goals[agent] = self._new_goal(agent)
+
         terminations = {agent: solved for agent in self.agents}
         truncations = {agent: truncated for agent in self.agents}
         infos = {
@@ -475,7 +545,7 @@ class MAPFEnv:
                 for agent in self.possible_agents
             )
         solution = self.solution()
-        return {
+        summary = {
             "solved": bool(solved),
             "steps": self.step_count,
             "collisions": self._collisions,
@@ -486,6 +556,11 @@ class MAPFEnv:
                 for agent in self.possible_agents
             ),
         }
+        if self.lifelong:
+            steps = max(self.step_count, 1)
+            summary["goals_completed"] = self.goals_completed
+            summary["throughput"] = self.goals_completed / steps
+        return summary
 
     # ------------------------------------------------------------------
     # interop and presentation
@@ -524,10 +599,11 @@ class MAPFEnv:
         """Nothing to release; here because the API has it."""
 
     def __repr__(self) -> str:
-        return "MAPFEnv(%d agents, %dx%d, observation=%r, reward=%r)" % (
+        return "MAPFEnv(%d agents, %dx%d, observation=%r, reward=%r%s)" % (
             len(self.possible_agents),
             self.grid.height,
             self.grid.width,
             self.encoder.name,
             self.reward_function.name,
+            ", lifelong" if self.lifelong else "",
         )

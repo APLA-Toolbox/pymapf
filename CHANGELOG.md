@@ -6,6 +6,31 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Lifelong MAPF in the RL environment.** `MAPFEnv(..., lifelong=True)`
+  hands an agent a new goal the moment it reaches one -- reachable, free,
+  claimed by nobody, drawn from the environment's own RNG so a seed fixes the
+  sequence of tasks as well as the map -- and runs to the horizon; the
+  episode summary reports `throughput` and `goals_completed`. This is the
+  objective deployed fleets are measured on and the top open problem in the
+  survey's second edition. Rewards are computed against the goal that was
+  actually reached before the re-tasking, and `ShapedReward` now caches its
+  distance fields per goal cell rather than per agent, so the potential
+  follows the current goal instead of rewarding a walk back to the first.
+- `pymapf.rl.baselines`: planners with the policy interface, bound to an
+  environment and run through the same loop as a network. `PIBTPolicy`
+  re-decides every step with the PIBT paper's lifelong priority rule;
+  `ReplanPolicy` re-plans with any registered solver whenever a goal changes;
+  `RandomPolicy` is the floor.
+- `compare_lifelong` scores policies and planner baselines by throughput on
+  shared instances, per agent per hundred steps so instances of different
+  size read alike. Trainers record `throughput` in their history and keep
+  the best policy by it when the environment is lifelong. Measured on the
+  8-agent warehouse: PIBT 8.5 goals per agent per 100 steps, replanning
+  LaCAM 8.4 at six times the cost, random 0.1, all collision-free but the
+  last.
+
 ## [0.9.0]
 
 NumPy 2 support, and the end of the Python versions that were holding it back.

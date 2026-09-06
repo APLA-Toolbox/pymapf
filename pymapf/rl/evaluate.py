@@ -308,3 +308,115 @@ def compare(
     for name in list(labelled) + list(baselines):
         rows.append(tallies[name].summary())
     return rows
+
+
+# --------------------------------------------------------------------------
+# lifelong
+# --------------------------------------------------------------------------
+
+
+class LifelongResult:
+    """Per-method tally for lifelong episodes: throughput, not cost."""
+
+    def __init__(self, name: str):
+        self.name = name
+        self.throughput: List[float] = []
+        self.goals: List[int] = []
+        self.collisions: List[int] = []
+        self.valid: List[bool] = []
+        self.runtime: List[float] = []
+        self.agents = 0
+
+    def add(self, summary: dict, valid: bool, runtime: float, agents: int) -> None:
+        self.throughput.append(float(summary["throughput"]))
+        self.goals.append(int(summary["goals_completed"]))
+        self.collisions.append(int(summary["collisions"]))
+        self.valid.append(bool(valid))
+        self.runtime.append(float(runtime))
+        self.agents = agents
+
+    def summary(self) -> Dict[str, float]:
+        n = max(len(self.throughput), 1)
+        mean_throughput = float(np.mean(self.throughput)) if self.throughput else 0.0
+        return {
+            "method": self.name,
+            "episodes": len(self.throughput),
+            "throughput": mean_throughput,
+            # Readable at a glance, and independent of agent count and horizon.
+            "goals_per_agent_per_100_steps": 100.0
+            * mean_throughput
+            / max(self.agents, 1),
+            "mean_goals": float(np.mean(self.goals)) if self.goals else 0.0,
+            "mean_collisions": (
+                float(np.mean(self.collisions)) if self.collisions else 0.0
+            ),
+            "validity_rate": sum(self.valid) / n,
+            "mean_runtime": float(np.mean(self.runtime)) if self.runtime else 0.0,
+        }
+
+
+def compare_lifelong(
+    env: MAPFEnv,
+    policies: Dict[str, object],
+    episodes: int = 20,
+    baselines: Sequence[str] = ("pibt",),
+    baseline_time_limit: float = 2.0,
+    seed: int = 0,
+    modes: Sequence[str] = ("greedy", "sampled"),
+) -> List[Dict[str, float]]:
+    """Score policies and planners on shared lifelong instances by throughput.
+
+    The lifelong objective has no optimum to compare against -- there is no
+    cost to be optimal *with respect to* when nothing terminates -- so the
+    table reports throughput: goals completed per step, and per agent per
+    hundred steps so instances of different size read alike. Every method
+    sees the same seeds, hence the same maps *and the same sequence of
+    re-tasking*, because the goals are drawn from the environment's own RNG.
+
+    Baselines are planners wrapped as policies (:mod:`pymapf.rl.baselines`):
+    ``"pibt"`` re-decides every step, and any other registered solver name
+    replans from the current configuration whenever a goal changes.
+    """
+    from .baselines import PIBTPolicy, ReplanPolicy
+
+    if not env.lifelong:
+        raise ValueError(
+            "compare_lifelong needs an environment built with lifelong=True"
+        )
+
+    labelled = {
+        ("%s (%s)" % (name, mode) if len(modes) > 1 else name): (
+            policy,
+            mode == "greedy",
+        )
+        for name, policy in policies.items()
+        for mode in modes
+    }
+    tallies: Dict[str, LifelongResult] = {
+        name: LifelongResult(name) for name in labelled
+    }
+    for name in baselines:
+        tallies[name] = LifelongResult(name)
+
+    def score(name: str, policy, deterministic: bool) -> None:
+        for episode in range(episodes):
+            started = time.perf_counter()
+            solution, summary = rollout(env, policy, deterministic, seed=seed + episode)
+            tallies[name].add(
+                summary,
+                solution.is_valid(),
+                time.perf_counter() - started,
+                len(env.possible_agents),
+            )
+
+    for name in baselines:
+        policy = (
+            PIBTPolicy(env)
+            if name == "pibt"
+            else ReplanPolicy(env, name, baseline_time_limit)
+        )
+        score(name, policy, True)
+    for name, (policy, deterministic) in labelled.items():
+        score(name, policy, deterministic)
+
+    return [tallies[name].summary() for name in list(labelled) + list(baselines)]
