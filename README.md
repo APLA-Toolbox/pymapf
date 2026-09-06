@@ -42,6 +42,7 @@ Loved the project? Please consider [donating](https://www.buymeacoffee.com/dq01a
 - 🧭 Centralized planners: **CBS**, **Weighted CBS**, Prioritized Planning, **PIBT**, **LaCAM**, **MAPF-LNS** — every one referenced in [REFERENCES.md](REFERENCES.md)
 - 🕸️ Works on **arbitrary graphs**, not just grids (roadmaps, warehouse topologies, PRMs)
 - 🐦 **Decentralized swarm control**, all object-oriented and registry-based: 10 flocking models (boids, Vicsek, Cucker–Smale, Olfati-Saber, proximal, active-elastic, acceleration-based, Gaussian-kernel, minimalistic, distributed-3D), 5 coverage controllers over 6 pluggable domains, and Gaussian-mixture distribution control
+- 🧭 **Decentralized navigation** with a goal per agent: ORCA, buffered Voronoi cells, potential fields and social forces, in any dimension, with the deadlocks they are known for recorded in tests rather than hidden
 - 📐 **Formation control** on the displacement / distance / bearing taxonomy, with exact Hungarian slot assignment and a rigidity test that tells you when a target shape is holdable at all
 - 🧠 **Multi-agent RL** (`pymapf.rl`): the MAPF instances as a PettingZoo-parallel environment, IPPO and MAPPO that train with **no dependency beyond numpy**, and a benchmark scored against the *optimal* CBS solution rather than another heuristic
 - 🔬 **[Extended survey](.docs/survey.md)** of MAPF 2021→2026 plus an experimental section with measured (and negative) results — and a [second edition](.docs/survey-v2.md) that revises the framing around lifelong MAPF, guidance-graph optimisation and learning-inside-search, with the [literature scan](.docs/research-notes.md) behind it
@@ -431,6 +432,55 @@ There is a short film for this layer — `.docs/assets/pymapf-rl-promo.mp4`, bui
 by `scripts/make_rl_promo.py`. It trains the policy while it renders, so the
 split-screen is that policy acting on one shared instance, and the 70/30 split
 is measured over 80 instances during the render rather than quoted.
+
+### Decentralized navigation 🧭
+
+The flocking and formation behaviors share one waypoint. These give every
+agent a destination of its own and ask it to get there from local information
+only — the problem a fleet faces once the central planner is gone.
+
+```python
+from pymapf.swarm import SwarmSimulator, SwarmParams, circle_swap
+
+state, goals = circle_swap(n=8, radius=10.0)          # everyone crosses the centre
+params = SwarmParams(separation_distance=1.0, cruise_speed=1.5)
+result = SwarmSimulator("orca", initial=state, params=params, goals=goals).run(steps=600)
+
+result.metrics.collisions              # 0
+min(result.metrics.min_distance)       # >= 1.0, the separation asked for
+```
+
+Four laws, two ideas of what "safe" means:
+
+| Law | Name | Kind | What it guarantees |
+|---|---|---|---|
+| ORCA (van den Berg et al. 2011) | `"orca"` | constraint | no collision while the velocity set is non-empty |
+| Buffered Voronoi cells (Zhou et al. 2017) | `"buffered_voronoi"` | constraint | no collision, with no velocity information at all |
+| Potential fields (Khatib 1986) | `"potential_field"` | force | nothing |
+| Social forces (Helbing & Molnár 1995) | `"social_force"` | force | nothing |
+
+All four are written for any dimension — ORCA's velocity obstacle is
+rotationally symmetric about the line between two agents, so its geometry
+lives in a plane whatever the ambient space — and the velocity is chosen by
+an exact projection onto the constraint set (RVO2's incremental linear
+programs, generalised to *n* dimensions by recursion) rather than an
+iterative one. That distinction found a bug: an iterative projection that
+stalled short of the cell let agents brush to 0.67 of a 1.0 separation; the
+exact one holds 1.02 in every run.
+
+What was measured, on the circle swap with separation 1.0:
+
+- **ORCA** never collides, and arrives with 4, 8 and 24 agents in 2D and 16
+  on a sphere. Twelve agents form a ring it does not break, with or without
+  tie-breaking noise — the symmetric deadlock the literature describes.
+- **Buffered Voronoi** never collides, in 2D or 3D, and deadlocks on any
+  symmetric crossing, as its paper says. It passes an offset pair and
+  staggered lanes.
+- **Potential fields** and **social forces** solve the 8- and 12-agent swaps
+  outright, and the potential field parks in the local minimum behind an
+  obstacle exactly where Khatib said it would.
+
+Each of those is a test, including the failures.
 
 ### Reactive planners
 

@@ -6,6 +6,30 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Decentralized navigation** (`pymapf.swarm.navigation`): four control laws
+  in which every agent has a goal of its own and decides from what it can
+  see -- **ORCA** (van den Berg et al. 2011), **buffered Voronoi cells** (Zhou
+  et al. 2017), **artificial potential fields** (Khatib 1986) and the
+  **social force model** (Helbing and Molnár 1995) -- as `Behavior`
+  subclasses registered by name, running in the existing `SwarmSimulator`
+  under the existing safety metrics, in any dimension. `circle_swap` is the
+  standard benchmark. ORCA moves from *related* to *implemented* in
+  `REFERENCES.md`.
+  - The two constraint methods choose a velocity by `project_onto_polytope`,
+    an exact projection onto half-spaces and a ball: RVO2's incremental
+    linear programs generalised to *n* dimensions by recursion, checked
+    against SLSQP on random polytopes to 1e-11. The first draft used
+    Dykstra's alternating projections and let agents brush to 0.67 of a 1.0
+    separation, because the iterate stalled short of a thin cell while the
+    convergence test called it done. The exact solver holds 1.02 in every
+    run, and is faster.
+  - The measurements are in the README and pinned by tests, failures
+    included: ORCA's twelve-agent ring deadlock, buffered Voronoi's deadlock
+    on any symmetric crossing, and the potential field's local minimum
+    behind an obstacle.
+
 ## [0.9.0]
 
 NumPy 2 support, and the end of the Python versions that were holding it back.
