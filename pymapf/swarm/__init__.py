@@ -122,6 +122,15 @@ from .domain import (
     SphereDomain,
     get_domain,
 )
+from .navigation import (  # noqa: F401
+    ORCA,
+    BufferedVoronoi,
+    NavigationBehavior,
+    PotentialField,
+    SocialForce,
+    circle_swap,
+    project_onto_polytope,
+)
 from .simulator import SwarmMetrics, SwarmResult, SwarmSimulator, simulate
 
 __all__ = [
@@ -154,6 +163,14 @@ __all__ = [
     "DistributedThreeDimensional",
     "DensityMatching",
     "MixtureAssignment",
+    # navigation: every agent its own goal
+    "NavigationBehavior",
+    "ORCA",
+    "BufferedVoronoi",
+    "PotentialField",
+    "SocialForce",
+    "circle_swap",
+    "project_onto_polytope",
     # formation control
     "DisplacementFormation",
     "DistanceFormation",
