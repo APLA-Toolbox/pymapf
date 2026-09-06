@@ -379,7 +379,8 @@
     <h2>Gallery</h2>
     <p class="sub">
       Every figure below is produced by <code>pymapf.viz</code> from the same theme the
-      playground uses — regenerate them with <code>python scripts/generate_gallery.py</code>.
+      playground uses — regenerate them with <code>python scripts/generate_gallery.py</code>
+      and <code>python scripts/generate_feature_demos.py</code>.
     </p>
     <div class="gallery">
       <figure>
@@ -413,6 +414,38 @@
       <figure>
         <img src="assets/scenarios.png" alt="The six built-in scenario families" loading="lazy">
         <figcaption><strong>scenarios</strong>Six reproducible instance families.</figcaption>
+      </figure>
+      <figure>
+        <img src="assets/animated-kinodynamic.gif" alt="A warehouse plan executed as continuous trajectories under speed and acceleration limits" loading="lazy">
+        <figcaption><strong>plan_trajectories()</strong>The same plan, at real speed: every move accelerates, cruises and stops, and the hand-over margin holds.</figcaption>
+      </figure>
+      <figure>
+        <img src="assets/kinodynamic-profiles.png" alt="Speed profiles of every agent over time, and arrival in timesteps versus seconds" loading="lazy">
+        <figcaption><strong>kinodynamic profiles</strong>Trapezoids under v_max; discrete steps against scheduled seconds.</figcaption>
+      </figure>
+      <figure>
+        <img src="assets/animated-3d.gif" alt="Six agents routed through three stacked floors, orbiting view" loading="lazy">
+        <figcaption><strong>plot_solution_3d()</strong>Stacked floors joined by two shafts; CBS runs on the volume unchanged.</figcaption>
+      </figure>
+      <figure>
+        <img src="assets/solution-3d.png" alt="Static view of routes through a three-floor volume" loading="lazy">
+        <figcaption><strong>stacked_floors</strong>The 3D bottleneck: floors never interact until they need the same shaft.</figcaption>
+      </figure>
+      <figure>
+        <img src="assets/animated-orca.gif" alt="Eight ORCA agents swapping sides across a circle" loading="lazy">
+        <figcaption><strong>ORCA</strong>Eight agents cross a circle from local information only; min separation 1.02.</figcaption>
+      </figure>
+      <figure>
+        <img src="assets/navigation.png" alt="The same circle crossing under ORCA, buffered Voronoi cells, potential fields and social forces" loading="lazy">
+        <figcaption><strong>four laws, one crossing</strong>ORCA, buffered Voronoi (deadlock, as its paper says), potential fields, social forces.</figcaption>
+      </figure>
+      <figure>
+        <img src="assets/animated-lifelong.gif" alt="PIBT agents in a lifelong warehouse being handed new goals on arrival" loading="lazy">
+        <figcaption><strong>MAPFEnv(lifelong=True)</strong>A new goal the moment one is reached; the counter is the score.</figcaption>
+      </figure>
+      <figure>
+        <img src="assets/lifelong.png" alt="Throughput of random, PIBT and replanning LaCAM policies on the lifelong warehouse" loading="lazy">
+        <figcaption><strong>compare_lifelong()</strong>Goals per agent per 100 steps: PIBT matches replanning at a sixth of the cost.</figcaption>
       </figure>
     </div>
   </div>

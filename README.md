@@ -198,6 +198,8 @@ viz.plot_solution_3d(solution, scenario)         # routes threading the floors
 print(pymapf.scenarios.to_ascii(scenario))       # one block per layer
 ```
 
+<img src=".docs/assets/animated-3d.gif" alt="Six agents routed through three stacked floors joined by two shafts, orbiting view" width="520">
+
 Connectivity is 6-connected by default and 26-connected with
 `allow_diagonals=True`, under the planar corner-cutting rule generalised: a
 move that changes several coordinates at once is allowed only if every
@@ -215,6 +217,44 @@ of 794 expansions and the same footprint with three layers costs 3.
 The learning layer stays planar for now — `MAPFEnv` says so rather than
 failing three calls in — and the planar plotters refuse a volume and point at
 `plot_solution_3d`.
+
+### From plans to trajectories 🚚
+
+A solver's plan is one cell per timestep. A robot has a top speed, an
+acceleration limit and a body, so `pymapf.kinodynamic` turns the plan into
+time-parameterised trajectories that respect all three — MAPF-POST (Hönig et
+al. 2016): keep the *order* in which agents visit each vertex, discard the
+unit-step timing, and re-derive it as the longest path through a simple
+temporal network whose constraints are physical.
+
+```python
+from pymapf.kinodynamic import KinematicLimits, plan_trajectories
+
+solution = pymapf.solve(scenario.to_problem(), "cbs")
+limits = KinematicLimits(v_max=1.5, a_max=3.0, safety_distance=0.5)
+trajectories = plan_trajectories(solution, limits=limits)
+
+trajectories.makespan                    # seconds, not timesteps
+trajectories["A"].position_at(3.25)      # mid-move, as floats
+trajectories["A"].velocity_at(3.25)
+trajectories.min_separation()            # (distance, time, pair): the closest any two came
+```
+
+<img src=".docs/assets/animated-kinodynamic.gif" alt="A warehouse plan executed as continuous trajectories under speed and acceleration limits" width="640">
+
+Every move is a rest-to-rest trapezoidal profile (a triangle when the move is
+too short to reach cruise speed), so `v_max` and `a_max` hold at every
+instant. The safety margin between two agents handing over a vertex is not one
+number: `required_margin` simulates the leaving and arriving moves under their
+actual profiles and the angle between them, because a full-speed rule lets a
+right-angle hand-over between agents starting from rest get within 0.2 of the
+0.5 asked for. On the plan above the sampled minimum separation is exactly the
+0.5 requested. Heterogeneous fleets pass `limits_by_agent`; general graphs take
+coordinates from `ExplicitGraph.positions`; a margin too long for a cycle of
+agents raises `InfeasibleScheduleError` rather than a schedule that never
+finishes.
+
+![speed profiles and arrival times](.docs/assets/kinodynamic-profiles.png)
 
 ### Watching the search
 
@@ -488,6 +528,8 @@ env.episode_summary()["throughput"]                        # goals completed per
 rows = compare_lifelong(env, {"ippo": trainer}, episodes=20, baselines=("pibt", "lacam"))
 ```
 
+<img src=".docs/assets/animated-lifelong.gif" alt="PIBT agents in a lifelong warehouse: a ring marks each goal reached and a new one appears" width="640">
+
 New goals are drawn from the environment's own RNG, so two policies scored on
 the same seed face the *same sequence of tasks*, not just the same map. The
 shaped reward's potential follows the current goal — it is cached per goal
@@ -513,6 +555,8 @@ The one-step rule matches the replanning solver's throughput at a sixth of
 the cost — which is the argument the lifelong literature makes for it, and
 now a number this repository produces.
 
+![lifelong throughput](.docs/assets/lifelong.png)
+
 ### Decentralized navigation 🧭
 
 The flocking and formation behaviors share one waypoint. These give every
@@ -529,6 +573,8 @@ result = SwarmSimulator("orca", initial=state, params=params, goals=goals).run(s
 result.metrics.collisions              # 0
 min(result.metrics.min_distance)       # >= 1.0, the separation asked for
 ```
+
+<img src=".docs/assets/animated-orca.gif" alt="Eight ORCA agents swapping sides across a circle without touching" width="420">
 
 Four laws, two ideas of what "safe" means:
 
@@ -560,7 +606,10 @@ What was measured, on the circle swap with separation 1.0:
   outright, and the potential field parks in the local minimum behind an
   obstacle exactly where Khatib said it would.
 
-Each of those is a test, including the failures.
+Each of those is a test, including the failures — and one figure, from
+`scripts/generate_feature_demos.py`:
+
+![the same crossing under four laws](.docs/assets/navigation.png)
 
 ### Reactive planners
 
@@ -594,6 +643,7 @@ sim.visualize("filename_test_2", 10, 10)
 
 ```bash
 python scripts/generate_gallery.py     # every figure in .docs/assets
+python scripts/generate_feature_demos.py  # the kinodynamic, 3D, navigation and lifelong demos
 python scripts/make_promo.py           # the promo film
 python scripts/make_rl_promo.py        # the learning-layer film
 python scripts/train_rl.py             # train IPPO/MAPPO, benchmark vs CBS

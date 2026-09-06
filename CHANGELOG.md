@@ -8,6 +8,12 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Demos for the four new layers.** `scripts/generate_feature_demos.py`
+  renders one animation and one figure each for kinodynamic execution, 3D
+  volumes, decentralized navigation and lifelong MAPF into `.docs/assets`;
+  they are embedded in the README sections and the site's gallery. The README
+  gains the *From plans to trajectories* section that the feature bullet
+  promised.
 - **`pymapf.kinodynamic`** -- discrete plans become trajectories a robot can
   follow. `plan_trajectories(solution, limits=KinematicLimits(v_max, a_max,
   safety_distance))` keeps the order in which the plan has agents visit each
