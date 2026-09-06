@@ -231,11 +231,11 @@ def _resolve_positions(paths, graph, positions, cell_size) -> Dict[Hashable, Poi
         # Grid cells are their own coordinates.
         try:
             table = {v: tuple(float(x) * cell_size for x in v) for v in vertices}
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as exc:
             raise ValueError(
                 "vertices are not coordinate tuples; pass positions= or a graph "
                 "with a .positions layout"
-            )
+            ) from exc
     return table
 
 
@@ -298,38 +298,84 @@ def plan_trajectories(
     stays: Dict[str, List[Tuple[Hashable, int, int]]] = {
         agent: stays_of(path) for agent, path in paths.items()
     }
-    durations: Dict[Tuple[str, int], float] = {}
-    profiles: Dict[Tuple[str, int], MotionProfile] = {}
-    for agent, agent_stays in stays.items():
-        lim = limits_for(agent)
-        for k in range(len(agent_stays) - 1):
-            a, b = agent_stays[k][0], agent_stays[k + 1][0]
-            profile = lim.profile(distance(coords[a], coords[b]))
-            profiles[(agent, k)] = profile
-            durations[(agent, k)] = profile.duration
-
+    profiles = _move_profiles(stays, coords, limits_for)
+    durations = {key: profile.duration for key, profile in profiles.items()}
     variables = list(durations)  # every (agent, k) with a departure
     index = {var: i for i, var in enumerate(variables)}
 
     # Edges (src, dst, w) meaning  t[dst] >= t[src] + w.  src=None is the
     # virtual source at time 0.
-    edges: List[Tuple[Optional[int], int, float]] = []
-    for var in variables:
-        edges.append((None, index[var], 0.0))
-
+    edges: List[Tuple[Optional[int], int, float]] = [
+        (None, index[var], 0.0) for var in variables
+    ]
     # travel + dwell: leave stay k+1 no earlier than arriving there.
     for agent, agent_stays in stays.items():
         for k in range(len(agent_stays) - 2):
             edges.append(
                 (index[(agent, k)], index[(agent, k + 1)], durations[(agent, k)])
             )
+    edges.extend(_safety_edges(stays, coords, profiles, index, limits_for))
 
-    # safety: consecutive visitors of a vertex, in discrete-time order.
+    times = _longest_path(len(variables), edges)
+    return _assemble(stays, coords, profiles, times, index)
+
+
+def _move_profiles(stays, coords, limits_for) -> Dict[Tuple[str, int], MotionProfile]:
+    """One motion profile per move, keyed like the departure variables."""
+    profiles: Dict[Tuple[str, int], MotionProfile] = {}
+    for agent, agent_stays in stays.items():
+        lim = limits_for(agent)
+        for k in range(len(agent_stays) - 1):
+            a, b = agent_stays[k][0], agent_stays[k + 1][0]
+            profiles[(agent, k)] = lim.profile(distance(coords[a], coords[b]))
+    return profiles
+
+
+def _handover_margin(
+    coords, stays, profiles, limits_for, vertex, a, ka, b, kb
+) -> float:
+    """Delay between A leaving stay ``ka`` at ``vertex`` and B arriving at
+    stay ``kb`` there.
+
+    The margin is derived from this particular hand-over: A's departing
+    move, B's arriving move, and the angle between them. A cautious agent
+    following a reckless one still gets its own distance, so the larger of
+    the two requirements applies. An explicit ``safety_time`` on either
+    agent overrides the geometric derivation.
+    """
+    lim_a, lim_b = limits_for(a), limits_for(b)
+    explicit = [
+        lim.safety_time for lim in (lim_a, lim_b) if lim.safety_time is not None
+    ]
+    if explicit:
+        return max(explicit)
+    wanted = max(lim_a.safety_distance, lim_b.safety_distance)
+    if wanted <= 0:
+        return 0.0
+    return required_margin(
+        coords[vertex],
+        coords[stays[a][ka + 1][0]],
+        profiles[(a, ka)],
+        coords[stays[b][kb - 1][0]],
+        profiles[(b, kb - 1)],
+        wanted,
+    )
+
+
+def _safety_edges(
+    stays, coords, profiles, index, limits_for
+) -> List[Tuple[int, int, float]]:
+    """Safety constraints between consecutive visitors of every vertex.
+
+    Visitors are ordered by discrete time. For each hand-over from A to B,
+    ``arrive(B, kb) = dep(B, kb-1) + duration >= dep(A, ka) + margin``.
+    """
     visits: Dict[Hashable, List[Tuple[int, str, int]]] = {}
     for agent, agent_stays in stays.items():
         for k, (vertex, first, _last) in enumerate(agent_stays):
             visits.setdefault(vertex, []).append((first, agent, k))
 
+    edges: List[Tuple[int, int, float]] = []
     for vertex, visitors in visits.items():
         visitors.sort()
         for (_, a, ka), (_, b, kb) in zip(visitors, visitors[1:]):
@@ -339,46 +385,32 @@ def plan_trajectories(
                 continue
             # A must have a departure (it is not parked here for good) and B
             # must have an arrival (it did not start here); a valid plan
-            # guarantees both, so these are assertions rather than branches.
-            assert (
-                ka < len(stays[a]) - 1
-            ), "%r parks at %r but %r visits it later; plan is not valid" % (
-                a,
-                vertex,
-                b,
-            )
-            assert kb > 0, "%r starts at %r but %r was there earlier" % (b, vertex, a)
-            # The margin is derived from this particular hand-over: A's
-            # departing move, B's arriving move, and the angle between them.
-            # A cautious agent following a reckless one still gets its own
-            # distance, so the larger of the two requirements applies.
-            lim_a, lim_b = limits_for(a), limits_for(b)
-            explicit = [
-                lim.safety_time for lim in (lim_a, lim_b) if lim.safety_time is not None
-            ]
-            wanted = max(lim_a.safety_distance, lim_b.safety_distance)
-            margin = max(explicit) if explicit else 0.0
-            if wanted > 0 and not explicit:
-                margin = required_margin(
-                    coords[vertex],
-                    coords[stays[a][ka + 1][0]],
-                    profiles[(a, ka)],
-                    coords[stays[b][kb - 1][0]],
-                    profiles[(b, kb - 1)],
-                    wanted,
+            # guarantees both, so failing either means the plan is not one.
+            if ka >= len(stays[a]) - 1:
+                raise ValueError(
+                    "%r parks at %r but %r visits it later; plan is not valid"
+                    % (a, vertex, b)
                 )
-            # arrive(B, kb) = dep(B, kb-1) + duration >= dep(A, ka) + margin
+            if kb <= 0:
+                raise ValueError(
+                    "%r starts at %r but %r was there earlier; plan is not valid"
+                    % (b, vertex, a)
+                )
+            margin = _handover_margin(
+                coords, stays, profiles, limits_for, vertex, a, ka, b, kb
+            )
             edges.append(
                 (
                     index[(a, ka)],
                     index[(b, kb - 1)],
-                    margin - durations[(b, kb - 1)],
+                    margin - profiles[(b, kb - 1)].duration,
                 )
             )
+    return edges
 
-    times = _longest_path(len(variables), edges)
 
-    # -- assemble ---------------------------------------------------------
+def _assemble(stays, coords, profiles, times, index) -> TrajectorySet:
+    """Turn departure times back into per-agent stays and segments."""
     trajectories: Dict[str, Trajectory] = {}
     for agent, agent_stays in stays.items():
         stay_objects: List[Stay] = []
