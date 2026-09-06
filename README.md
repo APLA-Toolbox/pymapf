@@ -47,7 +47,8 @@ Loved the project? Please consider [donating](https://www.buymeacoffee.com/dq01a
 - 🔬 **[Extended survey](.docs/survey.md)** of MAPF 2021→2026 plus an experimental section with measured (and negative) results — and a [second edition](.docs/survey-v2.md) that revises the framing around lifelong MAPF, guidance-graph optimisation and learning-inside-search, with the [literature scan](.docs/research-notes.md) behind it
 - 🧩 Pluggable solver framework with a name-based registry, pluggable heuristics and deterministic maps
 - 🔭 **Observable search**: every solver streams `SearchEvent`s — record them, animate them, or watch them live
-- 🗺️ **Six reproducible scenario families** (empty room, random obstacles, warehouse, maze, bottleneck, corner swap) plus ASCII maps
+- 🗺️ **Nine reproducible scenario families** — six planar (empty room, random obstacles, warehouse, maze, bottleneck, corner swap) and three volumetric (empty volume, random blocks, stacked floors) — plus ASCII maps
+- 🧊 **3D**: `VoxelGrid` is a stack of layers with 6- or 26-connectivity, and every solver, heuristic and the trajectory scheduler run on it unchanged
 - 📊 **Benchmark harness** with CSV/JSON export and ready-made charts
 - 🎬 **Visualisation**: static plots, congestion heatmaps, space-time cubes, timelines, GIF/MP4 animations, live views (window *or* terminal)
 - 🚚 **From plans to trajectories**: MAPF-POST-style scheduling turns any discrete plan into time-parameterised, speed- and acceleration-limited trajectories with a per-hand-over safety margin derived from the actual geometry
@@ -180,6 +181,39 @@ scenario = from_ascii("""
 ##########
 """)
 ```
+
+### Three dimensions 🧊
+
+A `VoxelGrid` is a stack of layers; a cell is `(layer, row, col)`. The solvers
+never look at a map's shape — they ask *is this vertex free?* and *what is
+adjacent to it?* — so every one of them, the heuristics, the benchmark harness
+and the trajectory scheduler run on a volume unchanged.
+
+```python
+scenario = pymapf.build_scenario("stacked_floors", floors=3, shafts=2, n_agents=6)
+solution = pymapf.solve(scenario.to_problem(), "cbs")
+
+viz.plot_solution_3d(solution, scenario)         # routes threading the floors
+print(pymapf.scenarios.to_ascii(scenario))       # one block per layer
+```
+
+Connectivity is 6-connected by default and 26-connected with
+`allow_diagonals=True`, under the planar corner-cutting rule generalised: a
+move that changes several coordinates at once is allowed only if every
+axis-aligned part of it is free, so nothing squeezes between two obstacles
+that touch at an edge or a corner in any orientation.
+
+Three volumetric families: `empty_volume`, `random_blocks`, and
+`stacked_floors` — solid floors joined by a few vertical shafts, the 3D
+`bottleneck`, where agents on different floors never interact until they all
+need the same column. The third axis is a way *around*: two agents swapping
+along a one-wide corridor deadlock on a plane and pass with a layer above.
+Measured with CBS on eight agents in a 6×6 footprint, the plane costs a median
+of 794 expansions and the same footprint with three layers costs 3.
+
+The learning layer stays planar for now — `MAPFEnv` says so rather than
+failing three calls in — and the planar plotters refuse a volume and point at
+`plot_solution_3d`.
 
 ### Watching the search
 

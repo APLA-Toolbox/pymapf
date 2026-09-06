@@ -31,6 +31,21 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     achieved in space, because the model covers hand-overs at shared vertices
     and not two agents passing on adjacent ones -- on a unit grid the latter
     keep one cell, and above that the sample is the check.
+- **Three-dimensional grids.** `VoxelGrid` is a stack of layers with the same
+  two-question interface as `GridMap` -- *is this free?*, *what is adjacent?* --
+  so every solver, the heuristics, the benchmark harness and the trajectory
+  scheduler run on a volume unchanged; the tests parametrise over every
+  registered solver to prove it. 6-connected by default, 26-connected with
+  `allow_diagonals`, under the planar corner-cutting rule generalised to every
+  face, edge and corner of the box a diagonal cuts through. The geometric
+  heuristics take any dimension. Three families join the registry --
+  `empty_volume`, `random_blocks`, `stacked_floors` (floors joined by a few
+  shafts: the 3D bottleneck) -- and `to_ascii` renders a volume one layer at a
+  time. `viz.plot_solution_3d` draws routes threading blocked voxels; the
+  planar plotters refuse a volume and say which function to use instead, and
+  so does `MAPFEnv`, which stays planar. Measured: eight agents in a 6x6
+  footprint cost CBS a median of 794 expansions on the plane and 3 with three
+  layers, because the third axis is a way around.
 
 ## [0.9.0]
 

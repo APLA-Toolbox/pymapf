@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Sequence
 
 from .core.grid import Cell, GridMap
+from .core.voxel import Voxel, VoxelGrid
 from .core.solver import Agent, MAPFProblem
 
 __all__ = [
@@ -60,12 +61,11 @@ class Scenario:
         return len(self.agents)
 
     def __repr__(self) -> str:
-        return "Scenario(%r, %dx%d, agents=%d)" % (
-            self.name,
-            self.grid.height,
-            self.grid.width,
-            len(self.agents),
+        size = "x".join(
+            str(n)
+            for n in getattr(self.grid, "shape", (self.grid.height, self.grid.width))
         )
+        return "Scenario(%r, %s, agents=%d)" % (self.name, size, len(self.agents))
 
 
 # --------------------------------------------------------------------------
@@ -443,8 +443,27 @@ def from_ascii(text: str, name: str = "ascii", allow_diagonals: bool = False):
 
 
 def to_ascii(scenario: Scenario) -> str:
-    """Render a scenario back to the :func:`from_ascii` format."""
+    """Render a scenario back to the :func:`from_ascii` format.
+
+    A :class:`VoxelGrid` renders as one block per layer, each headed
+    ``layer k`` and separated by a blank line; :func:`from_ascii` does not read
+    that back, it is for looking at.
+    """
     grid = scenario.grid
+    if getattr(grid, "dimension", 2) == 3:
+        blocks = []
+        for z in range(grid.depth):
+            canvas = [
+                ["#" if not grid.is_free((z, r, c)) else "." for c in range(grid.width)]
+                for r in range(grid.height)
+            ]
+            for agent in scenario.agents:
+                if agent.start[0] == z:
+                    canvas[agent.start[1]][agent.start[2]] = agent.name[0].lower()
+                if agent.goal[0] == z:
+                    canvas[agent.goal[1]][agent.goal[2]] = agent.name[0].upper()
+            blocks.append("layer %d\n" % z + "\n".join("".join(row) for row in canvas))
+        return "\n\n".join(blocks)
     canvas = [
         ["#" if not grid.is_free((r, c)) else "." for c in range(grid.width)]
         for r in range(grid.height)
@@ -453,6 +472,197 @@ def to_ascii(scenario: Scenario) -> str:
         canvas[agent.start[0]][agent.start[1]] = agent.name[0].lower()
         canvas[agent.goal[0]][agent.goal[1]] = agent.name[0].upper()
     return "\n".join("".join(row) for row in canvas)
+
+
+# --------------------------------------------------------------------------
+# 3D helpers and map builders
+# --------------------------------------------------------------------------
+#
+# The planar helpers above index occupancy[r][c] directly; these work through
+# the grid's own ``neighbors``/``is_free``, so they are written once for any
+# dimension and the 3D families reuse them unchanged.
+
+
+def _free_voxels(grid: VoxelGrid) -> List[Voxel]:
+    return [cell for cell in grid.cells() if grid.is_free(cell)]
+
+
+def _reachable_on(grid, source) -> set:
+    """Flood-fill the free component containing ``source`` (face-connected)."""
+    seen = {source}
+    stack = [source]
+    while stack:
+        cell = stack.pop()
+        for n in grid.neighbors(cell):
+            if n not in seen:
+                seen.add(n)
+                stack.append(n)
+    return seen
+
+
+def _largest_component_on(grid, free) -> List:
+    remaining = set(free)
+    best: set = set()
+    while remaining:
+        seed = min(remaining)
+        component = _reachable_on(grid, seed)
+        remaining -= component
+        if len(component) > len(best):
+            best = component
+    return sorted(best)
+
+
+def _sample_agents_on(
+    grid, n_agents: int, rng: random.Random, min_separation: int = 3
+) -> List[Agent]:
+    """:func:`_sample_agents` for any grid with ``cells``/``neighbors``."""
+    cells = _largest_component_on(grid, _free_voxels(grid))
+    if len(cells) < 2 * n_agents:
+        raise ValueError(
+            "map has %d reachable cells, need >= %d for %d agents"
+            % (len(cells), 2 * n_agents, n_agents)
+        )
+
+    def l1(a, b):
+        return sum(abs(x - y) for x, y in zip(a, b))
+
+    pool = list(cells)
+    rng.shuffle(pool)
+    starts = pool[:n_agents]
+    goal_pool = pool[n_agents:]
+    agents = []
+    for i, start in enumerate(starts):
+        best_index = 0
+        for index, candidate in enumerate(goal_pool):
+            if l1(candidate, start) >= min_separation:
+                best_index = index
+                break
+            if l1(candidate, start) > l1(goal_pool[best_index], start):
+                best_index = index
+        agents.append(Agent(_agent_name(i), start, goal_pool.pop(best_index)))
+    return agents
+
+
+def _empty_voxels(depth: int, height: int, width: int) -> List[List[List[int]]]:
+    return [[[0] * width for _ in range(height)] for _ in range(depth)]
+
+
+def empty_volume(
+    depth: int = 4, height: int = 8, width: int = 8, n_agents: int = 4, seed: int = 0
+):
+    """An open box: the 3D analogue of ``empty_room``.
+
+    Coordination happens only where paths cross, and with a third axis to
+    step aside into they cross far less often than on a plane -- which is the
+    point of the family: the same agent count is easier here, and a solver
+    that is not should be looked at.
+    """
+    rng = random.Random(seed)
+    grid = VoxelGrid(_empty_voxels(depth, height, width))
+    return Scenario(
+        name="empty_volume",
+        grid=grid,
+        agents=_sample_agents_on(grid, n_agents, rng),
+        description="An open %dx%dx%d volume." % (depth, height, width),
+        meta={"seed": seed, "depth": depth, "height": height, "width": width},
+    )
+
+
+def random_blocks(
+    depth: int = 5,
+    height: int = 8,
+    width: int = 8,
+    n_agents: int = 4,
+    density: float = 0.15,
+    seed: int = 0,
+):
+    """Uniformly scattered blocked voxels: ``random_obstacles`` in 3D."""
+    if not 0.0 <= density < 1.0:
+        raise ValueError("density must be in [0, 1)")
+    rng = random.Random(seed)
+    voxels = [
+        [
+            [1 if rng.random() < density else 0 for _ in range(width)]
+            for _ in range(height)
+        ]
+        for _ in range(depth)
+    ]
+    grid = VoxelGrid(voxels)
+    return Scenario(
+        name="random_blocks",
+        grid=grid,
+        agents=_sample_agents_on(grid, n_agents, rng),
+        description="%dx%dx%d volume with %.0f%% blocked voxels."
+        % (depth, height, width, 100 * density),
+        meta={"seed": seed, "density": density},
+    )
+
+
+def stacked_floors(
+    floors: int = 3,
+    height: int = 7,
+    width: int = 7,
+    n_agents: int = 4,
+    shafts: int = 2,
+    seed: int = 0,
+):
+    """Solid floors joined by a few vertical shafts: a multi-storey warehouse.
+
+    Between floors there is a slab of blocked voxels with ``shafts`` openings,
+    so every level change funnels through the same few columns. It is the 3D
+    ``bottleneck``: agents on different floors do not interact at all until
+    they need a shaft, and then they all need the same ones.
+    """
+    if floors < 2:
+        raise ValueError("stacked_floors needs at least two floors")
+    if shafts < 1:
+        raise ValueError("at least one shaft is needed to connect the floors")
+    rng = random.Random(seed)
+    depth = 2 * floors - 1  # floors at even layers, slabs at odd ones
+    voxels = _empty_voxels(depth, height, width)
+
+    # Shaft columns, drawn once so every slab is pierced in the same places.
+    interior = [(r, c) for r in range(1, height - 1) for c in range(1, width - 1)]
+    rng.shuffle(interior)
+    openings = interior[:shafts]
+    for z in range(1, depth, 2):
+        for r in range(height):
+            for c in range(width):
+                voxels[z][r][c] = 1
+        for r, c in openings:
+            voxels[z][r][c] = 0
+
+    grid = VoxelGrid(voxels)
+    # Starts and goals on different floors, so the shafts are actually used.
+    floor_layers = list(range(0, depth, 2))
+    cells_by_floor = {
+        z: [(z, r, c) for r in range(height) for c in range(width)]
+        for z in floor_layers
+    }
+    agents = []
+    taken: set = set()
+    for i in range(n_agents):
+        start_floor, goal_floor = rng.sample(floor_layers, 2)
+        start = _pick_free(cells_by_floor[start_floor], taken, rng)
+        goal = _pick_free(cells_by_floor[goal_floor], taken, rng)
+        agents.append(Agent(_agent_name(i), start, goal))
+    return Scenario(
+        name="stacked_floors",
+        grid=grid,
+        agents=agents,
+        description="%d floors of %dx%d joined by %d shaft(s)."
+        % (floors, height, width, shafts),
+        meta={"seed": seed, "floors": floors, "shafts": shafts},
+    )
+
+
+def _pick_free(cells, taken: set, rng: random.Random):
+    candidates = [cell for cell in cells if cell not in taken]
+    if not candidates:
+        raise ValueError("no free cell left on this floor for another agent")
+    cell = rng.choice(candidates)
+    taken.add(cell)
+    return cell
 
 
 # --------------------------------------------------------------------------
@@ -466,6 +676,10 @@ SCENARIO_BUILDERS: Dict[str, Callable[..., Scenario]] = {
     "maze": maze,
     "bottleneck": bottleneck,
     "corner_swap": corner_swap,
+    # three-dimensional families, on a VoxelGrid
+    "empty_volume": empty_volume,
+    "random_blocks": random_blocks,
+    "stacked_floors": stacked_floors,
 }
 
 

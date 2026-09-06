@@ -2,6 +2,7 @@
 
 from .graph import ExplicitGraph, Node, roadmap
 from .grid import Cell, GridMap
+from .voxel import VoxelGrid
 from .heuristics import HEURISTICS, get_heuristic, true_distance
 from .trace import Observer, SearchEvent, SearchTrace
 from .solver import (
@@ -20,6 +21,7 @@ from .solver import (
 __all__ = [
     "Cell",
     "GridMap",
+    "VoxelGrid",
     "ExplicitGraph",
     "Node",
     "roadmap",
