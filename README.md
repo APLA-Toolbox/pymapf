@@ -50,6 +50,7 @@ Loved the project? Please consider [donating](https://www.buymeacoffee.com/dq01a
 - 🗺️ **Six reproducible scenario families** (empty room, random obstacles, warehouse, maze, bottleneck, corner swap) plus ASCII maps
 - 📊 **Benchmark harness** with CSV/JSON export and ready-made charts
 - 🎬 **Visualisation**: static plots, congestion heatmaps, space-time cubes, timelines, GIF/MP4 animations, live views (window *or* terminal)
+- 🚚 **From plans to trajectories**: MAPF-POST-style scheduling turns any discrete plan into time-parameterised, speed- and acceleration-limited trajectories with a per-hand-over safety margin derived from the actual geometry
 - 🔎 Reactive distributed planners (Nonlinear Model Predictive Control, Velocity Obstacles)
 - 🪶 Zero runtime dependencies in the core — the solvers are pure standard library
 
