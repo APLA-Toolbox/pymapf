@@ -223,6 +223,7 @@ class PPOTrainer:
         self.total_steps = 0
         self._episode_returns: List[float] = []
         self._solved: List[float] = []
+        self._throughput: List[float] = []
         #: Best (solve rate, parameters) seen during training. Training here
         #: does not converge monotonically -- it peaks and then degrades -- so
         #: the final weights are routinely much worse than the best ones, and
@@ -316,6 +317,8 @@ class PPOTrainer:
                 if final and "episode" in final:
                     summary = final["episode"]
                     self._solved.append(1.0 if summary["solved"] else 0.0)
+                    if "throughput" in summary:
+                        self._throughput.append(float(summary["throughput"]))
                     break
 
     def learn(
@@ -340,13 +343,13 @@ class PPOTrainer:
                 solved=float(np.mean(recent)) if recent else 0.0,
                 elapsed=time.perf_counter() - started,
             )
+            if self._throughput:
+                # Lifelong: "solved" is always false, throughput is the score.
+                record["throughput"] = float(np.mean(self._throughput[-200:]))
             self.history.append(record)
-            if (
-                self.keep_best
-                and len(recent) >= 50
-                and record["solved"] > self.best_score
-            ):
-                self.best_score = record["solved"]
+            score = record.get("throughput", record["solved"])
+            if self.keep_best and len(recent) >= 50 and score > self.best_score:
+                self.best_score = score
                 self.best = self.policy.state_dict()
             if verbose and iteration % log_every == 0:
                 print(

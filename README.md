@@ -44,7 +44,7 @@ Loved the project? Please consider [donating](https://www.buymeacoffee.com/dq01a
 - 🐦 **Decentralized swarm control**, all object-oriented and registry-based: 10 flocking models (boids, Vicsek, Cucker–Smale, Olfati-Saber, proximal, active-elastic, acceleration-based, Gaussian-kernel, minimalistic, distributed-3D), 5 coverage controllers over 6 pluggable domains, and Gaussian-mixture distribution control
 - 🧭 **Decentralized navigation** with a goal per agent: ORCA, buffered Voronoi cells, potential fields and social forces, in any dimension, with the deadlocks they are known for recorded in tests rather than hidden
 - 📐 **Formation control** on the displacement / distance / bearing taxonomy, with exact Hungarian slot assignment and a rigidity test that tells you when a target shape is holdable at all
-- 🧠 **Multi-agent RL** (`pymapf.rl`): the MAPF instances as a PettingZoo-parallel environment, IPPO and MAPPO that train with **no dependency beyond numpy**, and a benchmark scored against the *optimal* CBS solution rather than another heuristic
+- 🧠 **Multi-agent RL** (`pymapf.rl`): the MAPF instances as a PettingZoo-parallel environment, IPPO and MAPPO that train with **no dependency beyond numpy**, and a benchmark scored against the *optimal* CBS solution rather than another heuristic — plus a **lifelong** mode where agents are re-tasked on arrival and the score is throughput, with PIBT and replanning planners as baselines run through the same loop
 - 🔬 **[Extended survey](.docs/survey.md)** of MAPF 2021→2026 plus an experimental section with measured (and negative) results — and a [second edition](.docs/survey-v2.md) that revises the framing around lifelong MAPF, guidance-graph optimisation and learning-inside-search, with the [literature scan](.docs/research-notes.md) behind it
 - 🧩 Pluggable solver framework with a name-based registry, pluggable heuristics and deterministic maps
 - 🔭 **Observable search**: every solver streams `SearchEvent`s — record them, animate them, or watch them live
@@ -467,6 +467,51 @@ There is a short film for this layer — `.docs/assets/pymapf-rl-promo.mp4`, bui
 by `scripts/make_rl_promo.py`. It trains the policy while it renders, so the
 split-screen is that policy acting on one shared instance, and the 70/30 split
 is measured over 80 instances during the render rather than quoted.
+
+#### Lifelong MAPF: throughput, not cost
+
+One-shot MAPF is a benchmark. The deployed problem is *lifelong*: an agent
+that reaches its goal is immediately given another, nothing ever terminates,
+and the number that matters is **throughput**. Sum-of-costs is not an
+approximation of that objective — it is undefined when nothing ends — which
+is why the second edition of the survey put a lifelong mode at the top of its
+open problems. It is one flag now:
+
+```python
+from pymapf.rl import MAPFEnv, PIBTPolicy, compare_lifelong
+
+env = MAPFEnv("warehouse", n_agents=8, lifelong=True)     # re-tasked on arrival
+observations, _ = env.reset(seed=0)
+# ... step it like any other; the episode runs to max_steps, and
+env.episode_summary()["throughput"]                        # goals completed per step
+
+rows = compare_lifelong(env, {"ippo": trainer}, episodes=20, baselines=("pibt", "lacam"))
+```
+
+New goals are drawn from the environment's own RNG, so two policies scored on
+the same seed face the *same sequence of tasks*, not just the same map. The
+shaped reward's potential follows the current goal — it is cached per goal
+cell rather than per agent, so a re-tasking never rewards walking back.
+
+The baselines are planners wrapped as policies (`pymapf.rl.baselines`), so
+they run through the very same loop as the network and are scored on the very
+same episodes: `PIBTPolicy` re-decides every step with the priority rule from
+the PIBT paper's lifelong experiments, the standard lifelong baseline;
+`ReplanPolicy` runs a full solver from the current configuration whenever a
+goal changes. `compare_lifelong` reports throughput per agent per hundred
+steps so instances of different size read alike.
+
+Measured on the 8-agent warehouse over five seeded episodes of 496 steps:
+
+| method | goals / agent / 100 steps | collisions | time per episode |
+|---|---|---|---|
+| random | 0.1 | 123 | 0.29 s |
+| PIBT, one step at a time | **8.5** | 0 | 0.40 s |
+| LaCAM, replanned on every re-tasking | 8.4 | 0 | 2.34 s |
+
+The one-step rule matches the replanning solver's throughput at a sixth of
+the cost — which is the argument the lifelong literature makes for it, and
+now a number this repository produces.
 
 ### Decentralized navigation 🧭
 
