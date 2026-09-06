@@ -101,8 +101,11 @@ def test_single_cell_path_is_one_stay():
 
 @pytest.fixture(scope="module")
 def warehouse():
+    # The scheduler needs a *valid* plan, not an optimal one. CBS on this
+    # instance takes ~5 s here and did not finish inside 20 s on a CI runner
+    # under coverage; LaCAM is complete and returns in milliseconds.
     scenario = pymapf.build_scenario("warehouse", n_agents=8, seed=3)
-    solution = pymapf.solve(scenario.to_problem(), "cbs", time_limit=20.0)
+    solution = pymapf.solve(scenario.to_problem(), "lacam", time_limit=10.0)
     assert solution is not None and solution.is_valid()
     return scenario, solution
 
@@ -120,11 +123,27 @@ def test_trajectories_start_and_end_where_the_plan_says(warehouse):
         ]
 
 
-def test_unit_speed_reproduces_the_discrete_makespan(warehouse):
+def test_unit_speed_never_exceeds_the_discrete_makespan(warehouse):
     _, solution = warehouse
     trajectories = plan_trajectories(solution, limits=KinematicLimits(v_max=1.0))
     # One cell per second with no margin: the discrete plan's own timing is
-    # feasible, so the earliest schedule cannot be slower than it.
+    # feasible, so the earliest schedule cannot be slower than it -- and it is
+    # faster whenever the plan contains waits nothing forces, which a
+    # suboptimal planner's plan does. Every agent settles no later than its
+    # own discrete path length, and at least one move takes its full second.
+    assert trajectories.makespan <= solution.makespan + 1e-9
+    for agent, path in solution.paths.items():
+        assert trajectories[agent].arrival_time <= len(path) - 1 + 1e-9
+    assert trajectories.makespan >= 1.0
+
+
+def test_unit_speed_reproduces_an_optimal_plan_exactly():
+    # CBS emits no wait that is not forced, so its timing *is* the earliest
+    # schedule and the two makespans coincide. Small enough to be instant.
+    scenario = pymapf.build_scenario("corner_swap", size=7, n_agents=4, seed=0)
+    solution = pymapf.solve(scenario.to_problem(), "cbs", time_limit=10.0)
+    assert solution is not None
+    trajectories = plan_trajectories(solution, limits=KinematicLimits(v_max=1.0))
     assert trajectories.makespan == pytest.approx(solution.makespan)
 
 
