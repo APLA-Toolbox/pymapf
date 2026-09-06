@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Dict, Optional
 
 from ..core.grid import GridMap
+from ..core.voxel import VoxelGrid
 from ..core.solver import MAPFProblem, Solution
 from ..scenarios import Scenario
 from . import theme as theme_module
@@ -31,13 +32,23 @@ _RAIL = 0.13
 
 
 def _as_grid(source) -> GridMap:
-    if isinstance(source, GridMap):
+    if isinstance(source, (GridMap, VoxelGrid)):
         return source
     if isinstance(source, (Scenario, MAPFProblem)):
         return source.grid
     raise TypeError(
-        "expected a GridMap, Scenario or MAPFProblem, got %r" % type(source)
+        "expected a GridMap, VoxelGrid, Scenario or MAPFProblem, got %r" % type(source)
     )
+
+
+def _require_planar(grid, what: str) -> None:
+    """The 2D drawers index cells as ``(row, col)``; a voxel would be drawn
+    silently wrong, so refuse it and point at the one that draws volumes."""
+    if getattr(grid, "dimension", 2) != 2:
+        raise TypeError(
+            "%s draws planar GridMap maps; this is a %r. Use plot_solution_3d "
+            "for a volume." % (what, type(grid).__name__)
+        )
 
 
 def _agents_of(source):
@@ -64,6 +75,8 @@ def _new_axes(grid: GridMap, ax, theme, figsize=None):
 def _draw_map(ax, grid: GridMap, theme) -> None:
     """Obstacles as blocks, a hairline lattice, row 0 at the top."""
     from matplotlib.patches import Rectangle
+
+    _require_planar(grid, "this plot")
 
     for r in range(grid.height):
         for c in range(grid.width):
@@ -311,6 +324,7 @@ def plot_spacetime(
 
     resolved = theme_module.apply(theme)
     grid = _as_grid(source)
+    _require_planar(grid, "plot_spacetime")
     if ax is None:
         figure = plt.figure(figsize=(7, 6))
         ax = figure.add_subplot(111, projection="3d")
@@ -534,6 +548,104 @@ def compare_solutions(
             suptitle, color=resolved.ink, fontsize=14, fontweight="bold", y=1.06
         )
     return figure
+
+
+def plot_solution_3d(
+    solution: Solution,
+    source,
+    ax=None,
+    theme="dark",
+    title: Optional[str] = None,
+    show_obstacles: bool = True,
+    label_agents: bool = True,
+    elev: float = 28.0,
+    azim: float = -55.0,
+):
+    """Every agent's route through a :class:`~pymapf.core.voxel.VoxelGrid`.
+
+    Axes are ``(col, row, layer)`` so that a layer reads as altitude; blocked
+    voxels are drawn as translucent cubes so the routes threading between them
+    stay visible. For a planar map use :func:`plot_solution`; for the
+    space-time view of a planar plan use :func:`plot_spacetime`.
+    """
+    import numpy as np
+    import matplotlib.pyplot as plt
+
+    resolved = theme_module.apply(theme)
+    grid = _as_grid(source)
+    if getattr(grid, "dimension", 2) != 3:
+        raise TypeError(
+            "plot_solution_3d draws VoxelGrid solutions; use plot_solution for a "
+            "planar GridMap or plot_spacetime for its space-time cube"
+        )
+    if ax is None:
+        figure = plt.figure(figsize=(7.5, 6.5))
+        ax = figure.add_subplot(111, projection="3d")
+
+    ax.set_facecolor(resolved.plane)
+    for pane in (ax.xaxis, ax.yaxis, ax.zaxis):
+        pane.set_pane_color((0, 0, 0, 0))
+        pane._axinfo["grid"]["color"] = resolved.grid
+        pane._axinfo["grid"]["linewidth"] = 0.5
+
+    if show_obstacles:
+        filled = np.zeros((grid.width, grid.height, grid.depth), dtype=bool)
+        for z, r, c in grid.cells():
+            if not grid.is_free((z, r, c)):
+                filled[c, r, z] = True
+        if filled.any():
+            ax.voxels(
+                filled,
+                facecolors=resolved.obstacle,
+                edgecolors=resolved.grid,
+                alpha=0.35,
+                linewidth=0.3,
+            )
+
+    names = list(solution.paths)
+    colors = resolved.color_map(names)
+    markers = resolved.marker_map(names)
+    for name in names:
+        path = solution.paths[name]
+        xs = [cell[2] + 0.5 for cell in path]
+        ys = [cell[1] + 0.5 for cell in path]
+        zs = [cell[0] + 0.5 for cell in path]
+        color = colors[name]
+        ax.plot(xs, ys, zs, color=color, linewidth=2.2, alpha=0.95, zorder=3)
+        ax.scatter(
+            xs[:1], ys[:1], zs[:1], color=color, marker=markers[name], s=70, zorder=4
+        )
+        ax.scatter(
+            xs[-1:],
+            ys[-1:],
+            zs[-1:],
+            facecolors="none",
+            edgecolors=color,
+            marker="s",
+            s=90,
+            linewidths=1.6,
+            zorder=4,
+        )
+        if label_agents:
+            ax.text(xs[0], ys[0], zs[0] + 0.25, name, color=color, fontsize=8)
+
+    ax.set_xlim(0, grid.width)
+    ax.set_ylim(grid.height, 0)  # row 0 at the back, like the planar plots
+    ax.set_zlim(0, grid.depth)
+    ax.set_box_aspect((grid.width, grid.height, grid.depth))
+    ax.set_xlabel("col", color=resolved.muted, labelpad=6)
+    ax.set_ylabel("row", color=resolved.muted, labelpad=6)
+    ax.set_zlabel("layer", color=resolved.muted, labelpad=6)
+    ax.tick_params(colors=resolved.muted, labelsize=7)
+    ax.view_init(elev=elev, azim=azim)
+    ax.set_title(
+        title
+        or "%s — cost %d, makespan %d"
+        % (solution.algorithm or "solution", solution.sum_of_costs, solution.makespan),
+        color=resolved.ink,
+        pad=12,
+    )
+    return ax
 
 
 def save(figure_or_ax, path: str, dpi: int = 150, transparent: bool = False) -> str:

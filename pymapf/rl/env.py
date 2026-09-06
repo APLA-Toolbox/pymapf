@@ -153,6 +153,14 @@ class MAPFEnv:
     # ------------------------------------------------------------------
     def _bind(self, problem) -> None:
         """Adopt a concrete instance: grid, agent names, starts and goals."""
+        if getattr(problem.grid, "dimension", 2) != 2:
+            # The encoders, the action set and the observation spaces are all
+            # written for a plane. Saying so beats an IndexError three calls in.
+            raise NotImplementedError(
+                "MAPFEnv supports planar GridMap instances; %r is a volume. "
+                "The solvers plan in 3D, the learning layer does not yet."
+                % type(problem.grid).__name__
+            )
         self._problem = problem
         self.grid = problem.grid
         self.allow_diagonals = problem.allow_diagonals

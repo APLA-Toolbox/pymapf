@@ -1,13 +1,21 @@
 """Pluggable, admissible grid heuristics.
 
-All heuristics operate on ``(row, col)`` integer cells and return a float
-estimate of the cost to travel between them. They are registered by name so
-that solvers can be configured with a string (e.g. ``"manhattan"``) instead of
-hard-coding a single global heuristic as the legacy ``common.HEURISTIC`` flag
-did.
+All heuristics operate on integer cells of any dimension -- ``(row, col)`` on
+a :class:`~pymapf.core.grid.GridMap`, ``(layer, row, col)`` on a
+:class:`~pymapf.core.voxel.VoxelGrid`, and anything longer -- and return a
+float estimate of the cost to travel between them. They are registered by name
+so that solvers can be configured with a string (e.g. ``"manhattan"``) instead
+of hard-coding a single global heuristic as the legacy ``common.HEURISTIC``
+flag did.
 
 Coordinate convention across the framework: a cell is ``(row, col)`` which maps
-to ``grid[row][col]`` (i.e. ``(y, x)``).
+to ``grid[row][col]`` (i.e. ``(y, x)``); a voxel prepends the layer.
+
+Which one is admissible depends on the move set and on the unit edge cost the
+solvers use: ``manhattan`` for face-adjacent moves (4 on a plane, 6 in a
+volume), ``chebyshev`` when diagonals are allowed (8 or 26), ``euclidean``
+always. ``octile`` prices a planar diagonal at ``sqrt 2`` and so overestimates
+under unit cost; it is kept for the classic grid-search convention.
 """
 
 from __future__ import annotations
@@ -15,33 +23,35 @@ from __future__ import annotations
 from math import sqrt
 from typing import Callable, Dict, Tuple
 
-Cell = Tuple[int, int]
+Cell = Tuple[int, ...]
 Heuristic = Callable[[Cell, Cell], float]
 
 _SQRT2 = sqrt(2)
 
 
 def manhattan(a: Cell, b: Cell) -> float:
-    """L1 distance. Admissible for 4-connected grids with unit moves."""
-    return float(abs(a[0] - b[0]) + abs(a[1] - b[1]))
+    """L1 distance. Admissible for face-adjacent moves in any dimension."""
+    return float(sum(abs(x - y) for x, y in zip(a, b)))
 
 
 def euclidean(a: Cell, b: Cell) -> float:
     """Straight-line distance. Admissible for any move set."""
-    return sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2)
+    return sqrt(sum((x - y) ** 2 for x, y in zip(a, b)))
 
 
 def chebyshev(a: Cell, b: Cell) -> float:
-    """L-infinity distance. Admissible for 8-connected grids with unit moves."""
-    return float(max(abs(a[0] - b[0]), abs(a[1] - b[1])))
+    """L-infinity distance. Admissible with diagonals under unit move cost."""
+    return float(max(abs(x - y) for x, y in zip(a, b)))
 
 
 def octile(a: Cell, b: Cell) -> float:
-    """Octile distance. Admissible for 8-connected grids where diagonal moves
-    cost ``sqrt(2)`` and orthogonal moves cost ``1``."""
-    dr = abs(a[0] - b[0])
-    dc = abs(a[1] - b[1])
-    return (dr + dc) + (_SQRT2 - 2) * min(dr, dc)
+    """Octile distance: the planar formula (diagonals cost ``sqrt 2``, straight
+    moves ``1``) on the two largest axis deltas, plus the rest linearly."""
+    deltas = sorted((abs(x - y) for x, y in zip(a, b)), reverse=True)
+    if len(deltas) < 2:
+        return float(sum(deltas))
+    first, second = deltas[0], deltas[1]
+    return (first + second) + (_SQRT2 - 2) * min(first, second) + sum(deltas[2:])
 
 
 HEURISTICS: Dict[str, Heuristic] = {

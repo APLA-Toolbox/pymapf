@@ -41,7 +41,12 @@ def _done(started: float, path: str) -> None:
 
 def scenario_sheet(output: str) -> str:
     """One panel per scenario family: the library's instance vocabulary."""
-    names = pymapf.available_scenarios()
+    # The sheet is the six planar families; the volumes have their own figure.
+    names = [
+        name
+        for name in pymapf.available_scenarios()
+        if getattr(pymapf.build_scenario(name, seed=1).grid, "dimension", 2) == 2
+    ]
     resolved = viz.apply(THEME)
     figure, axes = plt.subplots(2, 3, figsize=(15, 9))
     for ax, name in zip(axes.flat, names):

@@ -11,7 +11,9 @@ from __future__ import annotations
 
 from typing import Iterable, List, Tuple
 
-Cell = Tuple[int, int]
+# A grid cell is (row, col); a voxel is (layer, row, col). Solvers never index
+# into it, so one alias covers both.
+Cell = Tuple[int, ...]
 
 # 4-connected orthogonal moves, then the 4 diagonals.
 _ORTHOGONAL = [(-1, 0), (1, 0), (0, -1), (0, 1)]
