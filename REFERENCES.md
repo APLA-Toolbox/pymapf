@@ -18,6 +18,7 @@ at the end.
 - [Fast suboptimal and anytime MAPF](#fast-suboptimal-and-anytime-mapf)
 - [Learning-based MAPF](#learning-based-mapf) *(surveyed, not implemented)*
 - [Variants and extensions](#variants-and-extensions) *(surveyed, not implemented)*
+- [Kinodynamic execution](#kinodynamic-execution)
 - [Decentralized flocking](#decentralized-flocking)
 - [Formation control](#formation-control)
 - [Decentralized coverage](#decentralized-coverage)
@@ -118,7 +119,16 @@ Surveyed in `.docs/survey.md`; not implemented.
 | Anonymous / target assignment (TSWAP) | Okumura, K.; and Défago, X. 2022. *Solving simultaneous target assignment and path planning efficiently with time-independent execution.* ICAPS 2022: 270–278. |
 | Robust/k-robust plans | Atzmon, D.; Stern, R.; Felner, A.; Wagner, G.; Barták, R.; and Zhou, N.-F. 2020. *Robust multi-agent path finding and executing.* JAIR 67: 549–579. |
 | Execution under uncertainty (ADG) | Hönig, W.; Kiesel, S.; Tinka, A.; Durham, J. W.; and Ayanian, N. 2019. *Persistent and robust execution of MAPF schedules in warehouses.* IEEE RA-L 4(2): 1125–1131. |
-| MAPF with kinematic constraints | Hönig, W.; Kumar, T. K. S.; Cohen, L.; Ma, H.; Xu, H.; Ayanian, N.; and Koenig, S. 2016. *Multi-agent path finding with kinematic constraints.* ICAPS 2016: 477–485. |
+
+## Kinodynamic execution
+
+Implemented in `pymapf/kinodynamic/`.
+
+| Work | Module | Reference |
+|---|---|---|
+| **MAPF-POST: plans under kinematic constraints** | `schedule.plan_trajectories` | Hönig, W.; Kumar, T. K. S.; Cohen, L.; Ma, H.; Xu, H.; Ayanian, N.; and Koenig, S. 2016. *Multi-agent path finding with kinematic constraints.* ICAPS 2016: 477–485. |
+| Simple temporal networks | `schedule._longest_path` | Dechter, R.; Meiri, I.; and Pearl, J. 1991. *Temporal constraint networks.* Artificial Intelligence 49(1–3): 61–95. |
+| Trapezoidal velocity profiles | `trajectory.MotionProfile` | Standard; see e.g. Biagiotti, L.; and Melchiorri, C. 2008. *Trajectory Planning for Automatic Machines and Robots.* Springer, ch. 3. |
 
 ## Decentralized flocking
 
@@ -437,3 +447,18 @@ Raising the entropy coefficient does not help either — 0.01, 0.03 and 0.05 giv
 52%, 53% and 53% final solve rate. What does explain the training curve peaking
 near 100% and settling near 50% is the *evaluation mode*, not the training: see
 the greedy-versus-sampled result in `.docs/survey.md` § 7.7.
+
+**MAPF-POST** keeps the paper's structure — visit order from the discrete
+plan, timing from a simple temporal network solved as a longest path — with
+three departures. Motion is rest-to-rest at every vertex (trapezoidal or
+triangular profiles), where the paper permits any speed within limits at the
+cost of an upper bound per move and an LP; the consequence is a slower schedule
+that is never an unsafe one. There is no upper bound on dwell, so an agent may
+wait indefinitely for a slower one. And the safety margin is not the paper's
+single interval: `required_margin` derives it per hand-over by simulating the
+leaving and arriving moves under their actual profiles and the angle between
+them, because a full-speed rule lets a right-angle hand-over between
+rest-to-rest agents get within 0.2 of a 0.5 that was asked for. The remaining
+gap is passing on *adjacent* vertices without a shared one, which the model
+does not see; on a unit grid that keeps one cell, and
+`TrajectorySet.min_separation` samples the rest.
