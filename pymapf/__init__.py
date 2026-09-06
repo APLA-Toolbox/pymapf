@@ -41,6 +41,7 @@ from .core import (
 # Importing the algorithms package registers the built-in solvers by name.
 from . import algorithms  # noqa: F401  (side-effect: populates the registry)
 from . import scenarios  # noqa: F401
+from . import kinodynamic  # noqa: F401  (discrete plans -> trajectories)
 from .algorithms import (
     ConflictBasedSearch,
     LaCAM,
@@ -104,5 +105,6 @@ __all__ = [
     "get_solver",
     "register_solver",
     "solve",
+    "kinodynamic",
     "__version__",
 ]
