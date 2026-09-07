@@ -130,6 +130,10 @@ Implemented in `pymapf/kinodynamic/`.
 | **MAPF-POST: plans under kinematic constraints** | `schedule.plan_trajectories` | Hönig, W.; Kumar, T. K. S.; Cohen, L.; Ma, H.; Xu, H.; Ayanian, N.; and Koenig, S. 2016. *Multi-agent path finding with kinematic constraints.* ICAPS 2016: 477–485. |
 | Simple temporal networks | `schedule._longest_path` | Dechter, R.; Meiri, I.; and Pearl, J. 1991. *Temporal constraint networks.* Artificial Intelligence 49(1–3): 61–95. |
 | Trapezoidal velocity profiles | `trajectory.MotionProfile` | Standard; see e.g. Biagiotti, L.; and Melchiorri, C. 2008. *Trajectory Planning for Automatic Machines and Robots.* Springer, ch. 3. |
+| **CAPT: assignment and trajectories for many robots** | `aerial.plan_docking` (assignment, then MAPF, then timing) | Turpin, M.; Michael, N.; and Kumar, V. 2014. *CAPT: Concurrent assignment and planning of trajectories for multiple robots.* International Journal of Robotics Research 33(1): 98–112. |
+| Quadrotor swarm trajectories from discrete MAPF | `aerial.plan_docking` (roadmap and timing; no spline smoothing, no downwash model) | Hönig, W.; Preiss, J. A.; Kumar, T. K. S.; Sukhatme, G. S.; and Ayanian, N. 2018. *Trajectory planning for quadrotor swarms.* IEEE Transactions on Robotics 34(4): 856–869. |
+| Hungarian algorithm | `core.assignment.hungarian` | Kuhn, H. W. 1955. *The Hungarian method for the assignment problem.* Naval Research Logistics Quarterly 2(1–2): 83–97. |
+| Shortest augmenting paths for assignment | `core.assignment.hungarian` | Jonker, R.; and Volgenant, A. 1987. *A shortest augmenting path algorithm for dense and sparse linear assignment problems.* Computing 38(4): 325–340. |
 
 ## Decentralized flocking
 
@@ -464,18 +468,40 @@ the greedy-versus-sampled result in `.docs/survey.md` § 7.7.
 
 **MAPF-POST** keeps the paper's structure — visit order from the discrete
 plan, timing from a simple temporal network solved as a longest path — with
-three departures. Motion is rest-to-rest at every vertex (trapezoidal or
-triangular profiles), where the paper permits any speed within limits at the
-cost of an upper bound per move and an LP; the consequence is a slower schedule
-that is never an unsafe one. There is no upper bound on dwell, so an agent may
-wait indefinitely for a slower one. And the safety margin is not the paper's
-single interval: `required_margin` derives it per hand-over by simulating the
-leaving and arriving moves under their actual profiles and the angle between
-them, because a full-speed rule lets a right-angle hand-over between
-rest-to-rest agents get within 0.2 of a 0.5 that was asked for. The remaining
-gap is passing on *adjacent* vertices without a shared one, which the model
-does not see; on a unit grid that keeps one cell, and
+three departures. Motion is rest-to-rest per *run* (trapezoidal or triangular
+profiles): by default every vertex is a halt, and with `merge_straight` a
+straight stretch is one run whose intermediate vertices are passed at speed —
+still a difference constraint, because the time at which a run reaches its
+k-th vertex is a constant offset from its departure once the profile is fixed.
+The paper instead permits any speed within limits at the cost of an upper
+bound per move and an LP; the consequence here is a slower schedule that is
+never an unsafe one. There is no upper bound on dwell, so an agent may wait
+indefinitely for a slower one. And the safety margin is not the paper's single
+interval: it is derived per *pair of runs* that share a vertex, by simulating
+both vehicles' motion over the interval in which both are moving and finding
+the smallest delay at which they never come within the safety distance —
+because a full-speed rule lets a right-angle hand-over between rest-to-rest
+agents get within 0.2 of a 0.5 that was asked for. Only simultaneous motion
+is simulated: treating a halted agent as parked forever made two runs that
+share an endpoint look like a permanent collision, which the plan may well
+require. The remaining gap is passing on *adjacent* vertices without a shared
+one, which the model does not see; on a unit grid that keeps one cell, and
 `TrajectorySet.min_separation` samples the rest.
+
+**Quadrotor docking** stacks three exact steps where CAPT solves one joint
+problem. CAPT's insight is that in free space the minimum-sum-of-squares
+assignment alone makes straight-line, synchronised trajectories collision-free
+for bodies below a bound; that guarantee needs no obstacles, and this
+repository's airspaces have them, so the assignment is solved on its own
+(Hungarian, on flight distance through the voxel airspace rather than the
+straight line), the routes by a MAPF solver on the volume, and the timing by
+the scheduler above with a safety distance derived from the two bodies. Hönig
+et al. 2018 take the same discrete-then-continuous route for quadrotor swarms
+and then smooth with Bézier curves inside a corridor and model downwash as an
+elongated ellipsoid; here vehicles come to rest at turns and bodies are
+spheres, and the ground is blocked except at the pads — with a flight floor,
+also everything below it except the vertical corridor above each pad — so
+every trajectory ends in a straight descent onto its own station.
 
 **ORCA** builds the velocity obstacle and the reciprocal half-plane as in the
 paper, in any dimension: the obstacle is rotationally symmetric about the line

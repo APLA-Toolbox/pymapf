@@ -8,6 +8,29 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Quadrotor docking** (`pymapf.aerial`): a hovering fleet is assigned to
+  ground stations, routed and flown down on collision-free, kinematically
+  feasible trajectories. `Airspace.build` discretises a box of air into a
+  `VoxelGrid` with the ground blocked except at the pads and, with `floor`,
+  the layers below it open only in the vertical corridor above each pad;
+  `assign_stations` is the Hungarian algorithm on flight distance (exact);
+  `plan_docking` stacks it with CBS on the volume and `plan_trajectories`
+  with a safety distance derived from the bodies, and `DockingPlan` reports
+  the measured closest approach against the required one. Demo: eight
+  vehicles, ten pads, a building in the way, 0.70 m required, 1.50 m measured.
+- **Straight runs in the scheduler.** `plan_trajectories(...,
+  merge_straight=True)` flies consecutive collinear moves as one run under
+  one profile and passes the vertices between them at speed; each segment
+  lists them on `via`. The temporal network stays a longest-path problem
+  because a run's profile is fixed once its length is. Safety constraints
+  are now derived per *pair of runs* that share a vertex, from a simulation
+  of both vehicles' motion over the interval both are moving -- the same
+  simulation the rest-to-rest hand-over used, minus an assumption that made
+  runs sharing an endpoint look like a permanent collision. On the warehouse
+  plans, a quarter off the makespan under an acceleration limit at the same
+  0.5 separation.
+- `pymapf.core.assignment.hungarian`: the optimal assignment in pure Python,
+  shared by the aerial layer and the swarm formation slots.
 - **Demos for the four new layers.** `scripts/generate_feature_demos.py`
   renders one animation and one figure each for kinodynamic execution, 3D
   volumes, decentralized navigation and lifelong MAPF into `.docs/assets`;

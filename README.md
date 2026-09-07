@@ -52,7 +52,8 @@ Loved the project? Please consider [donating](https://www.buymeacoffee.com/dq01a
 - 🧊 **3D**: `VoxelGrid` is a stack of layers with 6- or 26-connectivity, and every solver, heuristic and the trajectory scheduler run on it unchanged
 - 📊 **Benchmark harness** with CSV/JSON export and ready-made charts
 - 🎬 **Visualisation**: static plots, congestion heatmaps, space-time cubes, timelines, GIF/MP4 animations, live views (window *or* terminal)
-- 🚚 **From plans to trajectories**: MAPF-POST-style scheduling turns any discrete plan into time-parameterised, speed- and acceleration-limited trajectories with a per-hand-over safety margin derived from the actual geometry
+- 🚚 **From plans to trajectories**: MAPF-POST-style scheduling turns any discrete plan into time-parameterised, speed- and acceleration-limited trajectories, straight stretches flown as single runs, with a per-hand-over safety margin derived from the actual geometry
+- 🚁 **Quadrotor docking**: `pymapf.aerial` assigns a hovering fleet to ground stations (Hungarian, exact), routes it through a voxel airspace (CBS) and flies it down on collision-free kinematic trajectories
 - 🔎 Reactive distributed planners (Nonlinear Model Predictive Control, Velocity Obstacles)
 - 🪶 Zero runtime dependencies in the core — the solvers are pure standard library
 
@@ -232,7 +233,7 @@ from pymapf.kinodynamic import KinematicLimits, plan_trajectories
 
 solution = pymapf.solve(scenario.to_problem(), "cbs")
 limits = KinematicLimits(v_max=1.5, a_max=3.0, safety_distance=0.5)
-trajectories = plan_trajectories(solution, limits=limits)
+trajectories = plan_trajectories(solution, limits=limits, merge_straight=True)
 
 trajectories.makespan                    # seconds, not timesteps
 trajectories["A"].position_at(3.25)      # mid-move, as floats
@@ -240,21 +241,60 @@ trajectories["A"].velocity_at(3.25)
 trajectories.min_separation()            # (distance, time, pair): the closest any two came
 ```
 
-<img src=".docs/assets/animated-kinodynamic.gif" alt="A warehouse plan executed as continuous trajectories under speed and acceleration limits" width="640">
-
 Every move is a rest-to-rest trapezoidal profile (a triangle when the move is
 too short to reach cruise speed), so `v_max` and `a_max` hold at every
-instant. The safety margin between two agents handing over a vertex is not one
-number: `required_margin` simulates the leaving and arriving moves under their
-actual profiles and the angle between them, because a full-speed rule lets a
-right-angle hand-over between agents starting from rest get within 0.2 of the
-0.5 asked for. On the plan above the sampled minimum separation is exactly the
-0.5 requested. Heterogeneous fleets pass `limits_by_agent`; general graphs take
-coordinates from `ExplicitGraph.positions`; a margin too long for a cycle of
-agents raises `InfeasibleScheduleError` rather than a schedule that never
-finishes.
+instant. With `merge_straight=True` a straight stretch of cells is one run
+flown under one profile — the vertices along it are passed *at speed*, not
+landed on — which is a quarter faster under an acceleration limit and what a
+vehicle that can hover or coast actually does. The safety margin between two
+agents at a shared vertex is not one number: the scheduler simulates the two
+vehicles' actual motion through it, at their actual speeds and the actual
+angle between them, and finds the smallest delay at which they never come
+within `safety_distance`. Heterogeneous fleets pass `limits_by_agent`;
+general graphs take coordinates from `ExplicitGraph.positions`; a margin too
+long for a cycle of agents raises `InfeasibleScheduleError` rather than a
+schedule that never finishes.
 
-![speed profiles and arrival times](.docs/assets/kinodynamic-profiles.png)
+#### Quadrotor docking: assign, route, fly, land
+
+`pymapf.aerial` is the whole pipeline for an aerial fleet: quadrotors
+hovering somewhere, docking stations on the ground, everyone down without
+touching. Three exact optimisations, stacked — the Hungarian algorithm
+assigns pads by flight distance, CBS routes the fleet through the
+discretised airspace, and the scheduler above times the routes under the
+vehicles' limits.
+
+```python
+from pymapf.aerial import Airspace, hovering_fleet, plan_docking
+from pymapf.kinodynamic import KinematicLimits
+
+airspace = Airspace.build(
+    cells=(16, 12, 7), cell_size=1.5,                    # 24 x 18 x 10 m of air
+    pads=[(3, c) for c in (3, 5, 7, 9, 11)] + [(8, c) for c in (3, 5, 7, 9, 11)],
+    obstacles=[((5, 6, 0), (6, 9, 3)), ((1, 13, 0), (1, 13, 5))],   # a building, a mast
+    floor=2,                                             # transit at 3 m or above
+)
+fleet = hovering_fleet(airspace, n=8, seed=4, radius=0.35)
+plan = plan_docking(fleet, airspace, limits=KinematicLimits(v_max=2.0, a_max=1.5), clearance=0.3)
+
+plan.assignment                              # {"q0": "pad-7", ...}, optimal
+plan.makespan                                # seconds until the last one is down
+plan.trajectories["q0"].position_at(4.0)     # metres, mid-flight
+plan.min_separation()                        # measured over the whole flight
+plan.is_safe()                               # ... and never below two bodies
+```
+
+<img src=".docs/assets/animated-quadrotor-docking.gif" alt="Eight quadrotors assigned to ground pads and flown down on collision-free trajectories around a building" width="640">
+
+The ground is blocked everywhere but the pads, and with a `floor` the layers
+below it are open only in the vertical corridor above each pad — so every
+trajectory transits at altitude and ends in a straight descent onto its own
+station, and no vehicle ever crosses a pad at ground level. The demo above:
+eight vehicles, ten pads, required separation 0.70 m between bodies, measured
+1.50 m at the closest; `v_max` and `a_max` hold to within the sampling
+resolution.
+
+![top view, altitude and closest pair over time](.docs/assets/quadrotor-docking.png)
 
 ### Watching the search
 
@@ -643,7 +683,7 @@ sim.visualize("filename_test_2", 10, 10)
 
 ```bash
 python scripts/generate_gallery.py     # every figure in .docs/assets
-python scripts/generate_feature_demos.py  # the kinodynamic, 3D, navigation and lifelong demos
+python scripts/generate_feature_demos.py  # the quadrotor, 3D, navigation and lifelong demos
 python scripts/make_promo.py           # the promo film
 python scripts/make_rl_promo.py        # the learning-layer film
 python scripts/train_rl.py             # train IPPO/MAPPO, benchmark vs CBS

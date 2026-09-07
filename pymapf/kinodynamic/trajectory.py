@@ -193,6 +193,9 @@ class Segment:
     origin: Point
     destination: Point
     profile: MotionProfile
+    #: vertices passed through at speed between the endpoints, in order --
+    #: empty unless the schedule merged straight moves into one run.
+    via: Tuple[object, ...] = ()
 
     def position_at(self, t: float) -> Point:
         if self.profile.length == 0:
