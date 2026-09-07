@@ -55,6 +55,7 @@
   <div class="pill-row">
     <span class="pill"><strong>6</strong> solvers: CBS, weighted CBS, LaCAM, PIBT, LNS, prioritized</span>
     <span class="pill"><strong>9</strong> reproducible scenario families, 3 of them in 3D</span>
+    <span class="pill"><strong>quadrotor docking</strong>: assign, route, fly, land — collision-free</span>
     <span class="pill"><strong>IPPO / MAPPO</strong> scored against the optimum</span>
     <span class="pill"><strong>0</strong> runtime dependencies in the core</span>
     <span class="pill">every algorithm <strong>referenced</strong></span>
@@ -416,12 +417,12 @@
         <figcaption><strong>scenarios</strong>Six reproducible instance families.</figcaption>
       </figure>
       <figure>
-        <img src="assets/animated-kinodynamic.gif" alt="A warehouse plan executed as continuous trajectories under speed and acceleration limits" loading="lazy">
-        <figcaption><strong>plan_trajectories()</strong>The same plan, at real speed: every move accelerates, cruises and stops, and the hand-over margin holds.</figcaption>
+        <img src="assets/animated-quadrotor-docking.gif" alt="Eight quadrotors assigned to ground pads and flown down on collision-free trajectories around a building" loading="lazy">
+        <figcaption><strong>plan_docking()</strong>Hungarian assignment, CBS routes, MAPF-POST timing: a fleet lands without touching.</figcaption>
       </figure>
       <figure>
-        <img src="assets/kinodynamic-profiles.png" alt="Speed profiles of every agent over time, and arrival in timesteps versus seconds" loading="lazy">
-        <figcaption><strong>kinodynamic profiles</strong>Trapezoids under v_max; discrete steps against scheduled seconds.</figcaption>
+        <img src="assets/quadrotor-docking.png" alt="Top view of the docking routes, altitude over time, and the closest pair over the whole flight" loading="lazy">
+        <figcaption><strong>quadrotor docking</strong>Top view, altitude profiles and the closest pair — never below 1.5 m for 0.7 m bodies.</figcaption>
       </figure>
       <figure>
         <img src="assets/animated-3d.gif" alt="Six agents routed through three stacked floors, orbiting view" loading="lazy">

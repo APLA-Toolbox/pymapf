@@ -43,6 +43,7 @@ from .core import (
 from . import algorithms  # noqa: F401  (side-effect: populates the registry)
 from . import scenarios  # noqa: F401
 from . import kinodynamic  # noqa: F401  (discrete plans -> trajectories)
+from . import aerial  # noqa: E402,F401
 from .algorithms import (
     ConflictBasedSearch,
     LaCAM,

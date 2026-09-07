@@ -392,61 +392,14 @@ def assign_slots(positions: np.ndarray, targets: np.ndarray) -> np.ndarray:
 
 
 def _hungarian(cost: np.ndarray) -> np.ndarray:
-    """Optimal assignment for a square cost matrix (Jonker-Volgenant style).
+    """Optimal assignment for a cost matrix: the shared, dependency-free
+    implementation in :mod:`pymapf.core.assignment`."""
+    from ..core.assignment import hungarian
 
-    Kept dependency-free on purpose -- the whole point of this package is that
-    the algorithms are readable and the imports are boring.
-    """
     cost = np.asarray(cost, dtype=float)
-    n, m = cost.shape
-    if n != m:
+    if cost.ndim != 2 or cost.shape[0] != cost.shape[1]:
         raise ValueError("assignment needs a square cost matrix")
-
-    INF = float("inf")
-    u = np.zeros(n + 1)
-    v = np.zeros(m + 1)
-    p = np.zeros(m + 1, dtype=int)
-    way = np.zeros(m + 1, dtype=int)
-
-    for i in range(1, n + 1):
-        p[0] = i
-        j0 = 0
-        minv = np.full(m + 1, INF)
-        used = np.zeros(m + 1, dtype=bool)
-        while True:
-            used[j0] = True
-            i0 = p[j0]
-            delta = INF
-            j1 = 0
-            for j in range(1, m + 1):
-                if used[j]:
-                    continue
-                current = cost[i0 - 1, j - 1] - u[i0] - v[j]
-                if current < minv[j]:
-                    minv[j] = current
-                    way[j] = j0
-                if minv[j] < delta:
-                    delta = minv[j]
-                    j1 = j
-            for j in range(m + 1):
-                if used[j]:
-                    u[p[j]] += delta
-                    v[j] -= delta
-                else:
-                    minv[j] -= delta
-            j0 = j1
-            if p[j0] == 0:
-                break
-        while j0:
-            j1 = way[j0]
-            p[j0] = p[j1]
-            j0 = j1
-
-    assignment = np.zeros(n, dtype=int)
-    for j in range(1, m + 1):
-        if p[j]:
-            assignment[p[j] - 1] = j - 1
-    return assignment
+    return np.asarray(hungarian(cost.tolist()), dtype=int)
 
 
 def formation_error(

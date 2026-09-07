@@ -357,3 +357,104 @@ def test_explicit_safety_time_bypasses_the_geometric_margin():
     )
     # Straight following at unit speed: the two rules agree.
     assert fixed.makespan == pytest.approx(derived.makespan, abs=0.02)
+
+
+# --------------------------------------------------------------------------
+# straight runs: collinear moves flown as one profile
+# --------------------------------------------------------------------------
+
+
+def test_merged_runs_keep_endpoints_and_list_the_vertices_passed(warehouse):
+    scenario, solution = warehouse
+    limits = KinematicLimits(v_max=1.5, a_max=3.0, safety_distance=0.5)
+    merged = plan_trajectories(solution, limits=limits, merge_straight=True)
+    halted = plan_trajectories(solution, limits=limits, merge_straight=False)
+    for agent in scenario.agents:
+        assert merged[agent.name].position_at(0.0) == halted[agent.name].position_at(
+            0.0
+        )
+        assert merged[agent.name].position_at(1e9) == halted[agent.name].position_at(
+            1e9
+        )
+        # Every vertex of the discrete path is a stay or on a segment's via.
+        seen = list(merged[agent.name].vertices())
+        for segment in merged[agent.name].segments:
+            seen.extend(segment.via)
+        assert set(seen) == set(solution.paths[agent.name])
+    assert sum(len(t.segments) for t in merged.values()) < sum(
+        len(t.segments) for t in halted.values()
+    )
+
+
+def test_merged_runs_are_faster_and_just_as_safe(warehouse):
+    _, solution = warehouse
+    limits = KinematicLimits(v_max=1.5, a_max=3.0, safety_distance=0.5)
+    merged = plan_trajectories(solution, limits=limits, merge_straight=True)
+    halted = plan_trajectories(solution, limits=limits, merge_straight=False)
+    # Not stopping at every cell saves the ramps: strictly faster under a_max.
+    assert merged.makespan < halted.makespan
+    assert merged.sum_of_arrival_times < halted.sum_of_arrival_times
+    assert merged.min_separation(0.02)[0] >= 0.5 - 5e-3
+    assert merged.max_speed(0.02) <= 1.5 + 1e-9
+
+
+def test_a_wait_or_a_turn_breaks_a_run():
+    # Straight, then a wait, then straight again: two runs. A turn: two runs.
+    waits = Solution({"a": [(0, 0), (0, 1), (0, 1), (0, 2), (0, 3)]})
+    turns = Solution({"b": [(0, 0), (0, 1), (0, 2), (1, 2), (2, 2)]})
+    straight = Solution({"c": [(0, 0), (0, 1), (0, 2), (0, 3)]})
+    for solution, expected in ((waits, 2), (turns, 2), (straight, 1)):
+        trajectories = plan_trajectories(solution, merge_straight=True)
+        (trajectory,) = trajectories.values()
+        assert len(trajectory.segments) == expected
+    (only,) = plan_trajectories(straight, merge_straight=True).values()
+    assert only.segments[0].via == ((0, 1), (0, 2))
+    # One run of length 3 at unit speed: passes (0,1) at 1 s, (0,2) at 2 s.
+    assert only.position_at(1.0) == pytest.approx((0.0, 1.0))
+    assert only.position_at(2.5) == pytest.approx((0.0, 2.5))
+
+
+def test_following_along_a_run_keeps_the_margin_at_every_passed_vertex():
+    lead = [(0, 0), (0, 1), (0, 2), (0, 3), (0, 4), (0, 5)]
+    tail = [(1, 0), (0, 0), (0, 1), (0, 2), (0, 3), (0, 4)]
+    solution = Solution({"lead": lead, "tail": tail})
+    limits = KinematicLimits(v_max=1.0, safety_distance=0.4)
+    trajectories = plan_trajectories(solution, limits=limits, merge_straight=True)
+    assert len(trajectories["lead"].segments) == 1
+    assert trajectories.min_separation(0.01)[0] >= 0.4 - 1e-6
+    # The tail follows one margin behind, not one full stop-and-go behind.
+    assert trajectories["tail"].arrival_time <= 6.0 + 1e-9
+
+
+def test_crossing_runs_hand_over_the_shared_vertex_safely():
+    # Two runs at right angles through (2, 2): first at t=2, second at t=4.
+    across = [(2, 0), (2, 1), (2, 2), (2, 3), (2, 4)]
+    down = [(0, 2), (0, 2), (0, 2), (1, 2), (2, 2), (3, 2), (4, 2)]
+    solution = Solution({"across": across, "down": down})
+    assert solution.is_valid()
+    limits = KinematicLimits(v_max=1.0, a_max=2.0, safety_distance=0.5)
+    trajectories = plan_trajectories(solution, limits=limits, merge_straight=True)
+    assert len(trajectories["across"].segments) == 1
+    assert len(trajectories["down"].segments) == 1
+    assert trajectories.min_separation(0.01)[0] >= 0.5 - 5e-3
+    # 'down' passes (2, 2) at speed after 'across' has cleared it.
+    across_at = trajectories["across"].stays[0].depart + trajectories[
+        "across"
+    ].segments[0].profile.time_to_travel(2.0)
+    down_at = trajectories["down"].stays[0].depart + trajectories["down"].segments[
+        0
+    ].profile.time_to_travel(2.0)
+    assert down_at > across_at
+
+
+def test_runs_that_share_an_endpoint_are_allowed():
+    # Both leave (0, 0) along the same row, one after the other: sharing the
+    # origin must not be mistaken for a permanent collision there.
+    first = [(0, 0), (0, 1), (0, 2), (0, 3), (0, 4)]
+    second = [(1, 0), (1, 0), (0, 0), (0, 1), (0, 2), (0, 3)]
+    solution = Solution({"first": first, "second": second})
+    assert solution.is_valid()
+    limits = KinematicLimits(v_max=1.0, a_max=2.0, safety_distance=0.5)
+    trajectories = plan_trajectories(solution, limits=limits, merge_straight=True)
+    assert trajectories.min_separation(0.01)[0] >= 0.5 - 5e-3
+    assert trajectories.makespan < 12.0

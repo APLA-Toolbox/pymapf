@@ -28,6 +28,19 @@ from the vertex while B creeps onto it, and a margin sized for full speed
 lets a right-angle hand-over get far closer than asked. The tests check the
 sampled minimum over whole plans against the distance requested.
 
+**Straight runs.** By default every vertex is a halt: the agent comes to rest
+at each cell, which is what makes each move's duration independent of the
+next. With ``merge_straight=True`` consecutive collinear moves with no wait
+between them become one *run* flown under one profile, and the vertices along
+it are *passed through* at speed. The network stays linear because a run's
+profile is fixed once its length is: the agent passes the k-th vertex of a
+run a constant ``tau_k`` after the run departs, so "A passes ``v``" is still
+the run's departure plus a constant, and every safety constraint is still a
+difference. The hand-over margin is derived from the same simulation, now
+with both agents moving through the vertex rather than starting or stopping
+on it. This is the form a vehicle that can hover or coast wants: a quadrotor
+does not land at every metre of a corridor.
+
 There is one respect in which the margin is *not* a guarantee: it covers each
 pair's hand-over at a shared vertex, not two agents passing on adjacent
 vertices without ever sharing one. On a unit grid those keep one cell apart,
@@ -35,11 +48,11 @@ which is fine for ``safety_distance <= 1``; ask for more than the edge length
 and :meth:`TrajectorySet.min_separation` is the check, as it is for anything
 else this model does not see.
 
-Deviations from the paper: profiles are rest-to-rest at every vertex (the
-paper allows any speed within limits, at the cost of a second bound per move
-and an LP), and there is no upper bound on dwell, so an agent may wait
-indefinitely for a slower one. Both are simplifications that keep the network
-a plain longest-path problem and the core free of a solver dependency.
+Deviations from the paper: profiles are rest-to-rest per run (the paper
+allows any speed within limits, at the cost of a second bound per move and an
+LP), and there is no upper bound on dwell, so an agent may wait indefinitely
+for a slower one. Both are simplifications that keep the network a plain
+longest-path problem and the core free of a solver dependency.
 """
 
 from __future__ import annotations
@@ -56,6 +69,7 @@ from .trajectory import (
     Trajectory,
     TrajectorySet,
     distance,
+    lerp,
 )
 
 __all__ = [
@@ -136,8 +150,172 @@ def stays_of(path: Sequence[Hashable]) -> List[Tuple[Hashable, int, int]]:
 
 
 # --------------------------------------------------------------------------
-# positions
+# runs: one profile over one straight stretch
 # --------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class _Run:
+    """One straight move under one profile, with the vertices it passes.
+
+    ``via`` lists ``(vertex, discrete_time, tau)`` for every vertex strictly
+    between the endpoints: the agent is there ``tau`` seconds after the run
+    departs. Without ``merge_straight`` every run has an empty ``via``.
+    """
+
+    origin: Point
+    destination: Point
+    profile: MotionProfile
+    via: Tuple[Tuple[Hashable, int, float], ...] = ()
+
+    @property
+    def duration(self) -> float:
+        return self.profile.duration
+
+    def at(self, t: float) -> Point:
+        """Position ``t`` seconds after departure, clamped to the endpoints."""
+        if self.profile.length == 0:
+            return self.origin
+        fraction = self.profile.travelled(t) / self.profile.length
+        return lerp(self.origin, self.destination, fraction)
+
+
+def _direction(a: Point, b: Point) -> Optional[Point]:
+    length = distance(a, b)
+    if length == 0:
+        return None
+    return tuple((y - x) / length for x, y in zip(a, b))
+
+
+def _same_direction(u: Optional[Point], v: Optional[Point]) -> bool:
+    if u is None or v is None:
+        return False
+    return all(abs(x - y) < 1e-9 for x, y in zip(u, v))
+
+
+def _runs_of(
+    agent_stays: Sequence[Tuple[Hashable, int, int]],
+    coords: Mapping[Hashable, Point],
+    limits: KinematicLimits,
+    merge_straight: bool,
+) -> Tuple[List[int], List[_Run]]:
+    """Split an agent's stays into halts and the runs between them.
+
+    Returns ``(halts, runs)``: ``halts`` are indices into ``agent_stays`` at
+    which the agent is at rest, and ``runs[i]`` goes from halt ``i`` to halt
+    ``i + 1``. A stay is merged into a run when it has no discrete wait and
+    the moves on either side of it point the same way.
+    """
+    halts = [0]
+    for k in range(1, len(agent_stays) - 1):
+        vertex, first, last = agent_stays[k]
+        before = _direction(coords[agent_stays[k - 1][0]], coords[vertex])
+        after = _direction(coords[vertex], coords[agent_stays[k + 1][0]])
+        if merge_straight and first == last and _same_direction(before, after):
+            continue
+        halts.append(k)
+    if len(agent_stays) > 1:
+        halts.append(len(agent_stays) - 1)
+
+    runs: List[_Run] = []
+    for start, stop in zip(halts, halts[1:]):
+        origin = coords[agent_stays[start][0]]
+        destination = coords[agent_stays[stop][0]]
+        profile = limits.profile(distance(origin, destination))
+        via = []
+        for k in range(start + 1, stop):
+            vertex, first, _last = agent_stays[k]
+            via.append(
+                (
+                    vertex,
+                    first,
+                    profile.time_to_travel(distance(origin, coords[vertex])),
+                )
+            )
+        runs.append(_Run(origin, destination, profile, tuple(via)))
+    return halts, runs
+
+
+# --------------------------------------------------------------------------
+# the hand-over margin
+# --------------------------------------------------------------------------
+
+
+def _pair_delay(
+    leader: _Run,
+    follower: _Run,
+    delay_order: float,
+    safety_distance: float,
+    resolution: float = 0.025,
+) -> float:
+    """Smallest delay between two runs' departures that keeps them apart.
+
+    ``leader`` is the run that the discrete plan has first at every vertex
+    the two share; ``delay_order`` is the least delay of the follower's
+    departure after the leader's that respects that order (the follower
+    reaches each shared vertex no earlier than the leader did). From there
+    the delay grows until, over the interval in which *both* runs are in
+    motion, the two agents never come within ``safety_distance``.
+
+    Only simultaneous motion is simulated. While one agent is halted the
+    other's passage through that halt vertex is a hand-over of its own,
+    constrained by the runs that touch it; and a halt the other run merely
+    passes *near* is the adjacent-vertex gap the module docstring describes.
+    Simulating a halt as "parked there forever" would instead forbid runs
+    that share an endpoint outright, which the plan may well require.
+
+    The search is a coarse scan refined by bisection, which does not assume
+    the separation is monotone in the delay (on an acute angle it need not
+    be) -- only that the scan is fine enough to bracket the first crossing.
+    Returns at most the leader's duration past ``delay_order``, by which time
+    the leader has completed its run before the follower departs; a
+    ``safety_distance`` violated even then is outside what the runs alone
+    can promise.
+    """
+    if safety_distance <= 0:
+        return delay_order
+
+    def separation(delay: float) -> float:
+        lo = max(0.0, delay)
+        hi = min(leader.duration, delay + follower.duration)
+        if hi < lo:
+            return math.inf
+        samples = max(24, int(math.ceil((hi - lo) / resolution)))
+        best = math.inf
+        for k in range(samples + 1):
+            t = lo + (hi - lo) * k / samples
+            best = min(best, distance(leader.at(t), follower.at(t - delay)))
+        return best
+
+    cap = max(delay_order, leader.duration)
+    return _first_clearing(separation, safety_distance, delay_order, cap)
+
+
+def _first_clearing(separation, wanted: float, lo: float, hi: float) -> float:
+    """Smallest ``x`` in ``[lo, hi]`` with ``separation(x) >= wanted``, by a
+    coarse scan that brackets the first crossing and a bisection that
+    refines it; ``hi`` when nothing in the range clears."""
+    if separation(lo) >= wanted:
+        return lo
+    if hi <= lo:
+        return hi
+    steps = 32
+    previous = lo
+    for k in range(1, steps + 1):
+        candidate = lo + (hi - lo) * k / steps
+        if separation(candidate) >= wanted:
+            lo, hi = previous, candidate
+            break
+        previous = candidate
+    else:
+        return hi
+    for _ in range(20):
+        mid = 0.5 * (lo + hi)
+        if separation(mid) >= wanted:
+            hi = mid
+        else:
+            lo = mid
+    return hi
 
 
 def required_margin(
@@ -161,63 +339,16 @@ def required_margin(
     B's whole approach with A moving as scheduled, and search for the smallest
     delay whose minimum clears ``safety_distance``.
 
-    The search is a coarse scan refined by bisection, which does not assume
-    the separation is monotone in the delay (on an acute angle it need not
-    be) -- only that the scan is fine enough to bracket the first crossing.
-    Returns ``0`` when no delay is needed and at most ``leaving.duration +
-    arriving.duration``, by which time A has completed its move and B has
-    not started; a ``safety_distance`` longer than the edges can still be
-    violated then, and is outside what one hand-over can promise.
+    This is the rest-to-rest case of the pairwise simulation the scheduler
+    runs on every pair of runs that share a vertex (:func:`_pair_delay`);
+    ``samples`` sets its time resolution over one second of motion.
     """
-    if safety_distance <= 0:
-        return 0.0
-    to_next = tuple(w - c for w, c in zip(leaving_to, vertex))
-    from_prev = tuple(c - u for c, u in zip(vertex, arriving_from))
-    len_a, len_b = leaving.length, arriving.length
-    dur_a, dur_b = leaving.duration, arriving.duration
-
-    def a_at(t: float) -> Point:
-        if t <= 0 or len_a == 0:
-            return vertex
-        f = leaving.travelled(t) / len_a
-        return tuple(c + d * f for c, d in zip(vertex, to_next))
-
-    def b_at(t: float, arrival: float) -> Point:
-        if len_b == 0:
-            return vertex
-        f = arriving.travelled(t - (arrival - dur_b)) / len_b
-        return tuple(u + d * f for u, d in zip(arriving_from, from_prev))
-
-    def separation(arrival: float) -> float:
-        start = min(0.0, arrival - dur_b)
-        span = arrival - start
-        best = math.inf
-        for k in range(samples + 1):
-            t = start + span * k / samples
-            best = min(best, distance(a_at(t), b_at(t, arrival)))
-        return best
-
-    cap = dur_a + dur_b
-    if separation(0.0) >= safety_distance:
-        return 0.0
-    # Coarse scan to bracket the first delay that works.
-    steps = 32
-    previous = 0.0
-    for k in range(1, steps + 1):
-        candidate = cap * k / steps
-        if separation(candidate) >= safety_distance:
-            lo, hi = previous, candidate
-            break
-        previous = candidate
-    else:
-        return cap
-    for _ in range(20):
-        mid = 0.5 * (lo + hi)
-        if separation(mid) >= safety_distance:
-            hi = mid
-        else:
-            lo = mid
-    return hi
+    a = _Run(vertex, leaving_to, leaving)
+    b = _Run(arriving_from, vertex, arriving)
+    # B arriving exactly as A departs is delay_order = -duration(B) between
+    # departures; the margin is measured from A's departure to B's arrival.
+    delay = _pair_delay(a, b, -b.duration, safety_distance, resolution=1.0 / samples)
+    return delay + b.duration
 
 
 def _resolve_positions(paths, graph, positions, cell_size) -> Dict[Hashable, Point]:
@@ -251,6 +382,7 @@ def plan_trajectories(
     limits: Optional[KinematicLimits] = None,
     limits_by_agent: Optional[Mapping[str, KinematicLimits]] = None,
     cell_size: float = 1.0,
+    merge_straight: bool = False,
 ) -> TrajectorySet:
     """Schedule a discrete :class:`pymapf.Solution` under kinematic limits.
 
@@ -264,6 +396,11 @@ def plan_trajectories(
         limits: limits shared by every agent (default: ``v_max = 1``).
         limits_by_agent: per-agent overrides, for heterogeneous fleets.
         cell_size: metres per grid cell when cells are used as coordinates.
+        merge_straight: fly consecutive collinear moves as one run under one
+            profile, passing the vertices between them at speed, instead of
+            coming to rest at every vertex. The trajectory then has a stay
+            only where the agent turns or waits; the vertices passed through
+            are listed on the segment's ``via``.
 
     Returns:
         A :class:`TrajectorySet`, earliest-possible under the constraints.
@@ -291,16 +428,21 @@ def plan_trajectories(
 
     coords = _resolve_positions(paths, graph, positions, cell_size)
 
-    # -- variables: one per departure --------------------------------------
-    # dep[(agent, k)] is when the agent leaves its k-th stay. Arrival at stay
-    # k+1 is dep[(agent, k)] + duration of that move -- not a variable, which
-    # is what keeps every constraint a plain difference.
+    # -- variables: one per run departure ------------------------------------
+    # dep[(agent, i)] is when the agent's i-th run leaves halt i. Arrival at
+    # halt i+1 is dep[(agent, i)] + the run's duration, and passing the k-th
+    # vertex of the run is dep[(agent, i)] + tau_k -- neither is a variable,
+    # which is what keeps every constraint a plain difference.
     stays: Dict[str, List[Tuple[Hashable, int, int]]] = {
         agent: stays_of(path) for agent, path in paths.items()
     }
-    profiles = _move_profiles(stays, coords, limits_for)
-    durations = {key: profile.duration for key, profile in profiles.items()}
-    variables = list(durations)  # every (agent, k) with a departure
+    halts: Dict[str, List[int]] = {}
+    runs: Dict[str, List[_Run]] = {}
+    for agent, agent_stays in stays.items():
+        halts[agent], runs[agent] = _runs_of(
+            agent_stays, coords, limits_for(agent), merge_straight
+        )
+    variables = [(agent, i) for agent in runs for i in range(len(runs[agent]))]
     index = {var: i for i, var in enumerate(variables)}
 
     # Edges (src, dst, w) meaning  t[dst] >= t[src] + w.  src=None is the
@@ -308,124 +450,142 @@ def plan_trajectories(
     edges: List[Tuple[Optional[int], int, float]] = [
         (None, index[var], 0.0) for var in variables
     ]
-    # travel + dwell: leave stay k+1 no earlier than arriving there.
-    for agent, agent_stays in stays.items():
-        for k in range(len(agent_stays) - 2):
+    # travel + dwell: leave halt i+1 no earlier than arriving there.
+    for agent, agent_runs in runs.items():
+        for i in range(len(agent_runs) - 1):
             edges.append(
-                (index[(agent, k)], index[(agent, k + 1)], durations[(agent, k)])
+                (index[(agent, i)], index[(agent, i + 1)], agent_runs[i].duration)
             )
-    edges.extend(_safety_edges(stays, coords, profiles, index, limits_for))
+    edges.extend(_safety_edges(stays, halts, runs, index, limits_for))
 
     times = _longest_path(len(variables), edges)
-    return _assemble(stays, coords, profiles, times, index)
+    return _assemble(stays, halts, runs, coords, times, index)
 
 
-def _move_profiles(stays, coords, limits_for) -> Dict[Tuple[str, int], MotionProfile]:
-    """One motion profile per move, keyed like the departure variables."""
-    profiles: Dict[Tuple[str, int], MotionProfile] = {}
-    for agent, agent_stays in stays.items():
-        lim = limits_for(agent)
-        for k in range(len(agent_stays) - 1):
-            a, b = agent_stays[k][0], agent_stays[k + 1][0]
-            profiles[(agent, k)] = lim.profile(distance(coords[a], coords[b]))
-    return profiles
+def _passages(stays, halts, runs):
+    """Every time a run is at a vertex: ``vertex -> [(time, agent, run, tau)]``.
 
-
-def _handover_margin(
-    coords, stays, profiles, limits_for, vertex, a, ka, b, kb
-) -> float:
-    """Delay between A leaving stay ``ka`` at ``vertex`` and B arriving at
-    stay ``kb`` there.
-
-    The margin is derived from this particular hand-over: A's departing
-    move, B's arriving move, and the angle between them. A cautious agent
-    following a reckless one still gets its own distance, so the larger of
-    the two requirements applies. An explicit ``safety_time`` on either
-    agent overrides the geometric derivation.
+    A run is at its origin when it departs (the halt's last discrete time),
+    at its destination when it arrives (the halt's first), and at each
+    vertex it passes through at that vertex's discrete time.
     """
-    lim_a, lim_b = limits_for(a), limits_for(b)
-    explicit = [
-        lim.safety_time for lim in (lim_a, lim_b) if lim.safety_time is not None
-    ]
-    if explicit:
-        return max(explicit)
-    wanted = max(lim_a.safety_distance, lim_b.safety_distance)
-    if wanted <= 0:
-        return 0.0
-    return required_margin(
-        coords[vertex],
-        coords[stays[a][ka + 1][0]],
-        profiles[(a, ka)],
-        coords[stays[b][kb - 1][0]],
-        profiles[(b, kb - 1)],
-        wanted,
-    )
+    passages: Dict[Hashable, List[Tuple[int, str, int, float]]] = {}
+    for agent, agent_halts in halts.items():
+        agent_stays = stays[agent]
+        for i, run in enumerate(runs[agent]):
+            origin, _first, last = agent_stays[agent_halts[i]]
+            destination, first, _last = agent_stays[agent_halts[i + 1]]
+            passages.setdefault(origin, []).append((last, agent, i, 0.0))
+            passages.setdefault(destination, []).append((first, agent, i, run.duration))
+            for vertex, time, tau in run.via:
+                passages.setdefault(vertex, []).append((time, agent, i, tau))
+    return passages
+
+
+def _check_parking(stays, passages) -> None:
+    """A vertex an agent parks on for good must not be visited afterwards."""
+    for agent, agent_stays in stays.items():
+        vertex, first, _last = agent_stays[-1]
+        for time, other, _run, _tau in passages.get(vertex, ()):
+            if other != agent and time > first:
+                raise ValueError(
+                    "%r parks at %r but %r visits it later; plan is not valid"
+                    % (agent, vertex, other)
+                )
 
 
 def _safety_edges(
-    stays, coords, profiles, index, limits_for
+    stays, halts, runs, index, limits_for
 ) -> List[Tuple[int, int, float]]:
-    """Safety constraints between consecutive visitors of every vertex.
+    """One safety constraint per pair of runs that share a vertex.
 
-    Visitors are ordered by discrete time. For each hand-over from A to B,
-    ``arrive(B, kb) = dep(B, kb-1) + duration >= dep(A, ka) + margin``.
+    The discrete plan says which of the two is first at the shared vertices
+    (it is the same one at all of them: two runs sharing several vertices
+    are collinear, and opposite directions would be a swap). The follower's
+    departure is then delayed after the leader's by :func:`_pair_delay`, so
+    ``dep(follower) >= dep(leader) + delay``.
     """
-    visits: Dict[Hashable, List[Tuple[int, str, int]]] = {}
-    for agent, agent_stays in stays.items():
-        for k, (vertex, first, _last) in enumerate(agent_stays):
-            visits.setdefault(vertex, []).append((first, agent, k))
+    passages = _passages(stays, halts, runs)
+    _check_parking(stays, passages)
+
+    # Shared vertices, grouped by the pair of runs that share them.
+    pairs: Dict[
+        Tuple[Tuple[str, int], Tuple[str, int]], List[Tuple[int, int, float, float]]
+    ] = {}
+    for vertex, visitors in passages.items():
+        for x in range(len(visitors)):
+            time_a, agent_a, run_a, tau_a = visitors[x]
+            for y in range(x + 1, len(visitors)):
+                time_b, agent_b, run_b, tau_b = visitors[y]
+                if agent_a == agent_b:
+                    continue
+                key_a, key_b = (agent_a, run_a), (agent_b, run_b)
+                if key_a <= key_b:
+                    pairs.setdefault((key_a, key_b), []).append(
+                        (time_a, time_b, tau_a, tau_b)
+                    )
+                else:
+                    pairs.setdefault((key_b, key_a), []).append(
+                        (time_b, time_a, tau_b, tau_a)
+                    )
 
     edges: List[Tuple[int, int, float]] = []
-    for vertex, visitors in visits.items():
-        visitors.sort()
-        for (_, a, ka), (_, b, kb) in zip(visitors, visitors[1:]):
-            if a == b:
-                # The same agent revisiting a vertex: its own travel chain
-                # already orders the two stays.
-                continue
-            # A must have a departure (it is not parked here for good) and B
-            # must have an arrival (it did not start here); a valid plan
-            # guarantees both, so failing either means the plan is not one.
-            if ka >= len(stays[a]) - 1:
-                raise ValueError(
-                    "%r parks at %r but %r visits it later; plan is not valid"
-                    % (a, vertex, b)
-                )
-            if kb <= 0:
-                raise ValueError(
-                    "%r starts at %r but %r was there earlier; plan is not valid"
-                    % (b, vertex, a)
-                )
-            margin = _handover_margin(
-                coords, stays, profiles, limits_for, vertex, a, ka, b, kb
+    for (key_a, key_b), shared in pairs.items():
+        a_first = [time_a < time_b for time_a, time_b, _, _ in shared]
+        if all(a_first):
+            leader, follower = key_a, key_b
+            order = max(tau_a - tau_b for _, _, tau_a, tau_b in shared)
+        elif not any(a_first):
+            leader, follower = key_b, key_a
+            order = max(tau_b - tau_a for _, _, tau_a, tau_b in shared)
+        else:
+            raise ValueError(
+                "%r and %r pass each other head-on between shared vertices; "
+                "plan is not valid" % (key_a[0], key_b[0])
             )
-            edges.append(
-                (
-                    index[(a, ka)],
-                    index[(b, kb - 1)],
-                    margin - profiles[(b, kb - 1)].duration,
-                )
+        lim_l, lim_f = limits_for(leader[0]), limits_for(follower[0])
+        explicit = [
+            lim.safety_time for lim in (lim_l, lim_f) if lim.safety_time is not None
+        ]
+        if explicit:
+            delay = order + max(explicit)
+        else:
+            wanted = max(lim_l.safety_distance, lim_f.safety_distance)
+            delay = _pair_delay(
+                runs[leader[0]][leader[1]],
+                runs[follower[0]][follower[1]],
+                order,
+                wanted,
             )
+        edges.append((index[leader], index[follower], delay))
     return edges
 
 
-def _assemble(stays, coords, profiles, times, index) -> TrajectorySet:
+def _assemble(stays, halts, runs, coords, times, index) -> TrajectorySet:
     """Turn departure times back into per-agent stays and segments."""
     trajectories: Dict[str, Trajectory] = {}
-    for agent, agent_stays in stays.items():
+    for agent, agent_halts in halts.items():
+        agent_runs = runs[agent]
         stay_objects: List[Stay] = []
         segments: List[Segment] = []
         arrive = 0.0
-        for k, (vertex, _first, _last) in enumerate(agent_stays):
-            last = k == len(agent_stays) - 1
-            depart = math.inf if last else times[index[(agent, k)]]
+        for h, k in enumerate(agent_halts):
+            vertex = stays[agent][k][0]
+            last = h == len(agent_runs)
+            depart = math.inf if last else times[index[(agent, h)]]
             stay_objects.append(Stay(vertex, coords[vertex], arrive, depart))
             if not last:
-                profile = profiles[(agent, k)]
-                next_vertex = agent_stays[k + 1][0]
-                end = depart + profile.duration
+                run = agent_runs[h]
+                end = depart + run.duration
                 segments.append(
-                    Segment(depart, end, coords[vertex], coords[next_vertex], profile)
+                    Segment(
+                        depart,
+                        end,
+                        run.origin,
+                        run.destination,
+                        run.profile,
+                        via=tuple(v for v, _first, _tau in run.via),
+                    )
                 )
                 arrive = end
         trajectories[agent] = Trajectory(agent, stay_objects, segments)

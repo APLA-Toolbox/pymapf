@@ -1,11 +1,11 @@
-"""Render the demos for the kinodynamic, 3D, navigation and lifelong layers.
+"""Render the demos for the quadrotor docking, 3D, navigation and lifelong layers.
 
 One animation and one figure per feature, written to ``.docs/assets`` in the
 same theme as the rest of the gallery, so the README and the site show what
 each layer does rather than describe it::
 
     python scripts/generate_feature_demos.py             # everything
-    python scripts/generate_feature_demos.py --only orca  # one of them
+    python scripts/generate_feature_demos.py --only quadrotor  # one of them
 
 Every figure is produced from a seeded run, so regenerating gives the same
 picture and the numbers in the captions match the ones in the README.
@@ -62,153 +62,396 @@ def _solve(problem, preferred: str = "cbs", time_limit: float = 60.0):
 
 
 # --------------------------------------------------------------------------
-# 1. kinodynamic: a discrete plan executed under real speed and acceleration
+# 1. quadrotor docking: assignment, routes and kinematic trajectories in 3D
 # --------------------------------------------------------------------------
 
 
-def kinodynamic(out) -> None:
+def _docking_instance():
+    """A fleet spread over a field of pads with a building in the way.
+
+    Of a few seeded fleets, the one whose optimal routes are longest is the
+    one worth watching; every candidate is solved by CBS, so the routes are
+    optimal for the assignment whichever seed wins.
+    """
+    from pymapf.aerial import Airspace, hovering_fleet, plan_docking
+    from pymapf.kinodynamic import KinematicLimits
+
+    airspace = Airspace.build(
+        cells=(16, 12, 7),
+        cell_size=1.5,
+        pads=[(3, c) for c in (3, 5, 7, 9, 11)] + [(8, c) for c in (3, 5, 7, 9, 11)],
+        obstacles=[((5, 6, 0), (6, 9, 3)), ((1, 13, 0), (1, 13, 5))],
+        floor=2,
+    )
+    best = None
+    for seed in range(6):
+        fleet = hovering_fleet(airspace, n=8, seed=seed, min_layer=3, radius=0.35)
+        try:
+            plan = plan_docking(
+                fleet,
+                airspace,
+                limits=KinematicLimits(v_max=2.0, a_max=1.5),
+                clearance=0.3,
+                algorithm="cbs",
+                time_limit=20.0,
+            )
+        except RuntimeError:
+            continue
+        if (
+            best is None
+            or plan.summary()["route_cost"] > best[2].summary()["route_cost"]
+        ):
+            best = (airspace, fleet, plan)
+    return best
+
+
+def _obstacle_voxels(airspace):
+    """Obstacles as an ``(x, y, z)`` boolean array: what is blocked at or
+    above the flight floor, and below it only the columns of those (the
+    floor itself is a rule, not a thing to draw)."""
+    depth, height, width = airspace.grid.shape
+    filled = np.zeros((width, height, depth), dtype=bool)
+    for r in range(height):
+        for c in range(width):
+            for z in range(airspace.floor, depth):
+                if not airspace.grid.is_free((z, r, c)):
+                    filled[c, r, z] = True
+            if filled[c, r, airspace.floor]:
+                filled[c, r, 1 : airspace.floor] = True
+    return filled
+
+
+def _draw_world(ax, airspace, plan, resolved, colors):
+    cs = airspace.cell_size
+    x_len, y_len, z_len = airspace.extent
+    ax.set_facecolor(resolved.plane)
+    ax.figure.patch.set_facecolor(resolved.plane)
+    # Draw in the order given, not by depth: the ground stays under everything.
+    ax.computed_zorder = False
+    for pane in (ax.xaxis, ax.yaxis, ax.zaxis):
+        pane.set_pane_color((0, 0, 0, 0))
+        pane.pane.set_edgecolor(resolved.grid)
+        pane._axinfo["grid"]["color"] = resolved.grid
+    ax.set_xlim(-cs, x_len + cs)
+    ax.set_ylim(-cs, y_len + cs)
+    ax.set_zlim(0, z_len + cs)
+    ax.set_box_aspect((x_len + 2 * cs, y_len + 2 * cs, z_len + cs), zoom=1.7)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_zticks([])
+    # the ground, as a surface so that what is drawn above it stays visible
+    gx, gy = np.meshgrid([-cs / 2, x_len + cs / 2], [-cs / 2, y_len + cs / 2])
+    ax.plot_surface(
+        gx,
+        gy,
+        np.zeros_like(gx),
+        color=resolved.surface,
+        alpha=0.9,
+        shade=False,
+        zorder=0,
+    )
+    # the pads, coloured by whoever lands there
+    landing = {station: name for name, station in plan.assignment.items()}
+    for station in plan.stations:
+        x, y, _ = station.position
+        color = colors.get(landing.get(station.name), resolved.axis)
+        h = 0.42 * cs
+        ax.plot(
+            [x - h, x + h, x + h, x - h, x - h],
+            [y - h, y - h, y + h, y + h, y - h],
+            [0.12 * cs] * 5,
+            color=color,
+            linewidth=2.2,
+            zorder=3,
+        )
+    # obstacles: one translucent cube per blocked voxel, drawn explicitly so
+    # that the draw order above holds for them too
+    from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+
+    filled = _obstacle_voxels(airspace)
+    faces = []
+    for c, r, z in zip(*np.nonzero(filled)):
+        x0, y0, z0 = (c - 0.5) * cs, (r - 0.5) * cs, (z - 0.5) * cs
+        x1, y1, z1 = x0 + cs, y0 + cs, z0 + cs
+        corners = [
+            (x0, y0, z0),
+            (x1, y0, z0),
+            (x1, y1, z0),
+            (x0, y1, z0),
+            (x0, y0, z1),
+            (x1, y0, z1),
+            (x1, y1, z1),
+            (x0, y1, z1),
+        ]
+        for quad in (
+            (0, 1, 2, 3),
+            (4, 5, 6, 7),
+            (0, 1, 5, 4),
+            (2, 3, 7, 6),
+            (1, 2, 6, 5),
+            (0, 3, 7, 4),
+        ):
+            faces.append([corners[i] for i in quad])
+    if faces:
+        # Light enough to survive GIF palette quantisation next to the trails.
+        blocks = Poly3DCollection(
+            faces,
+            facecolors=resolved.axis,
+            edgecolors=resolved.muted,
+            linewidths=0.6,
+            alpha=0.75,
+        )
+        blocks.set_zorder(1)
+        ax.add_collection3d(blocks)
+
+
+def quadrotor(out) -> None:
     from matplotlib.animation import FuncAnimation
     import matplotlib.pyplot as plt
 
-    from pymapf.kinodynamic import KinematicLimits, plan_trajectories
-
     resolved = theme_module.apply(THEME)
-    scenario = pymapf.build_scenario("warehouse", n_agents=8, seed=0)
-    solution = _solve(scenario.to_problem())
-    limits = KinematicLimits(v_max=1.5, a_max=3.0, safety_distance=0.5)
-    trajectories = plan_trajectories(solution, limits=limits)
-    names = list(solution.paths)
+    started = _step("quadrotor: assign, route, schedule")
+    airspace, fleet, plan = _docking_instance()
+    summary = plan.summary()
+    names = [q.name for q in fleet]
     colors = resolved.color_map(names)
-    makespan = trajectories.makespan
-    separation = trajectories.min_separation()[0]
-
-    # -- the animation: agents moving at their real speed --------------------
-    started = _step("kinodynamic: animating the warehouse plan")
-    dt = 1.0 / 12.0
-    frames = int(math.ceil(makespan / dt)) + 18  # hold the final state
-    ax = viz.plot_grid(scenario, theme=THEME)
-    figure = ax.figure
-    for agent in scenario.agents:
-        ax.plot(
-            agent.goal[1],
-            agent.goal[0],
-            marker="s",
-            markersize=9,
-            markerfacecolor="none",
-            markeredgecolor=colors[agent.name],
-            markeredgewidth=1.4,
-            zorder=3,
+    print(
+        "%.1fs  makespan %.1fs, min separation %.2f (need %.2f)"
+        % (
+            time.perf_counter() - started,
+            plan.makespan,
+            summary["min_separation"],
+            summary["required_separation"],
         )
-    dots = {
+    )
+
+    # -- the animation --------------------------------------------------------
+    started = _step("quadrotor: animating the docking")
+    dt = 0.1
+    makespan = plan.makespan
+    frames = int(math.ceil(makespan / dt)) + 20
+    figure = plt.figure(figsize=(7.4, 5.6))
+    figure.subplots_adjust(left=0, right=1, bottom=0, top=0.9)
+    ax = figure.add_subplot(111, projection="3d")
+    ax.view_init(elev=36, azim=-56)
+    _draw_world(ax, airspace, plan, resolved, colors)
+    for q in fleet:
+        x, y, z = q.position
+        ax.plot([x, x], [y, y], [0, z], color=colors[q.name], linewidth=0.5, alpha=0.25)
+    bodies = {
         name: ax.plot(
+            [],
             [],
             [],
             marker="o",
             markersize=10,
             color=colors[name],
             linestyle="none",
-            zorder=5,
+            zorder=6,
+        )[0]
+        for name in names
+    }
+    rotors = {
+        name: ax.plot(
+            [],
+            [],
+            [],
+            marker="+",
+            markersize=18,
+            markeredgewidth=1.4,
+            color=colors[name],
+            linestyle="none",
+            zorder=7,
         )[0]
         for name in names
     }
     trails = {
-        name: ax.plot([], [], color=colors[name], linewidth=2.2, alpha=0.55, zorder=4)[
-            0
-        ]
+        name: ax.plot(
+            [], [], [], color=colors[name], linewidth=2.6, alpha=0.95, zorder=4
+        )[0]
         for name in names
     }
-    clock = ax.text(
-        0.01,
-        0.99,
-        "",
-        transform=ax.transAxes,
-        va="top",
-        ha="left",
-        color=resolved.ink,
-        fontsize=9,
+    readout = ax.text2D(
+        0.02, 0.96, "", transform=ax.transAxes, fontsize=9, color=resolved.ink, va="top"
     )
     figure.suptitle(
-        "plan_trajectories() — v_max %.1f, a_max %.1f, safety %.1f · min separation %.2f"
-        % (limits.v_max, limits.a_max, limits.safety_distance, separation),
-        fontsize=10,
+        "plan_docking() · %d quadrotors, %d pads · Hungarian + CBS + MAPF-POST runs\n"
+        "v_max %.1f m/s, a_max %.1f m/s², bodies %.2f m apart at least — measured %.2f"
+        % (
+            len(fleet),
+            len(plan.stations),
+            plan.limits.v_max,
+            plan.limits.a_max,
+            summary["required_separation"],
+            summary["min_separation"],
+        ),
+        fontsize=9.5,
         color=resolved.ink,
     )
-    trail_seconds = 1.6
+    trail_seconds = 3.0
+    closest_so_far = [math.inf]
+    sample_times, sample_positions = plan.trajectories.sample(dt)
 
     def update(frame):
         t = min(frame * dt, makespan)
+        k = min(frame, len(sample_times) - 1)
+        docked = 0
         for name in names:
-            trajectory = trajectories[name]
-            row, col = trajectory.position_at(t)
-            dots[name].set_data([col], [row])
-            past = np.linspace(max(0.0, t - trail_seconds), t, 12)
-            points = np.array([trajectory.position_at(s) for s in past])
-            trails[name].set_data(points[:, 1], points[:, 0])
-        speed = max(math.hypot(*trajectories[name].velocity_at(t)) for name in names)
-        clock.set_text("t = %5.2f s   fastest agent %.2f m/s" % (t, speed))
-        return list(dots.values()) + list(trails.values()) + [clock]
+            trajectory = plan.trajectories[name]
+            x, y, z = trajectory.position_at(t)
+            bodies[name].set_data_3d([x], [y], [z])
+            rotors[name].set_data_3d([x], [y], [z])
+            start = max(0, k - int(trail_seconds / dt))
+            points = np.array(sample_positions[name][start : k + 1])
+            trails[name].set_data_3d(points[:, 0], points[:, 1], points[:, 2])
+            if t >= trajectory.arrival_time - 1e-9:
+                docked += 1
+        positions = np.array([plan.trajectories[name].position_at(t) for name in names])
+        if len(names) > 1:
+            diff = positions[:, None, :] - positions[None, :, :]
+            dist = np.sqrt((diff**2).sum(axis=2)) + np.eye(len(names)) * 1e9
+            closest_so_far[0] = min(closest_so_far[0], float(dist.min()))
+        readout.set_text(
+            "t = %5.1f s   docked %d/%d   closest so far %.2f m"
+            % (t, docked, len(names), closest_so_far[0])
+        )
+        return (
+            list(bodies.values())
+            + list(rotors.values())
+            + list(trails.values())
+            + [readout]
+        )
 
     animation = FuncAnimation(
-        figure, update, frames=frames, interval=1000 * dt, blit=True
+        figure, update, frames=frames, interval=1000 * dt, blit=False
     )
-    path = _save_gif(animation, out("animated-kinodynamic.gif"), fps=12)
+    path = _save_gif(
+        animation, out("animated-quadrotor-docking.gif"), fps=int(1 / dt), dpi=80
+    )
     _done(started, path)
 
-    # -- the figure: every agent's speed over time ---------------------------
-    started = _step("kinodynamic: speed profiles")
-    theme_module.apply(THEME)
-    figure, axes = plt.subplots(
-        2, 1, figsize=(7.2, 4.6), sharex=True, height_ratios=[3, 2]
-    )
-    times = np.linspace(0.0, makespan, 900)
-    highlighted = names[:3]
-    for name in names:
-        trajectory = trajectories[name]
-        speeds = [math.hypot(*trajectory.velocity_at(t)) for t in times]
-        if name in highlighted:
-            axes[0].plot(
-                times, speeds, color=colors[name], linewidth=1.7, label=name, zorder=3
-            )
-        else:
-            axes[0].plot(
-                times, speeds, color=colors[name], linewidth=0.9, alpha=0.28, zorder=2
-            )
-    axes[0].axhline(limits.v_max, color=resolved.muted, linewidth=0.8, linestyle="--")
-    axes[0].text(
-        makespan, limits.v_max, " v_max", color=resolved.muted, va="center", fontsize=8
-    )
-    axes[0].set_ylabel("speed (m/s)")
-    axes[0].set_title(
-        "Speed: a rest-to-rest trapezoid per move, capped at v_max (three agents highlighted)",
-        fontsize=10,
-    )
-    axes[0].legend(ncol=3, fontsize=8, loc="upper right")
+    _docking_figure(out, airspace, fleet, plan, summary, colors, resolved)
 
-    # the discrete plan's timing against the scheduled one, per agent
-    discrete = [len(solution.paths[name]) - 1 for name in names]
-    scheduled = [trajectories[name].arrival_time for name in names]
-    y = np.arange(len(names))
-    axes[1].barh(
-        y - 0.18, discrete, height=0.36, color=resolved.axis, label="discrete steps"
+
+def _docking_figure(out, airspace, fleet, plan, summary, colors, resolved) -> None:
+    import matplotlib.pyplot as plt
+
+    # -- the figure: top view, altitude, separation -----------------------------
+    started = _step("quadrotor: top view, altitude and separation")
+    theme_module.apply(THEME)
+    figure = plt.figure(figsize=(10.5, 4.8))
+    grid = figure.add_gridspec(2, 2, width_ratios=[1.15, 1], hspace=0.45, wspace=0.2)
+    top = figure.add_subplot(grid[:, 0])
+    altitude = figure.add_subplot(grid[0, 1])
+    separation = figure.add_subplot(grid[1, 1], sharex=altitude)
+
+    cs = airspace.cell_size
+    x_len, y_len, _ = airspace.extent
+    top.set_facecolor(resolved.surface)
+    top.set_xlim(-cs, x_len + cs)
+    top.set_ylim(-cs, y_len + cs)
+    top.set_aspect("equal")
+    top.set_xticks([])
+    top.set_yticks([])
+    depth, height, width = airspace.grid.shape
+    from matplotlib.patches import Rectangle
+
+    for r in range(height):
+        for c in range(width):
+            if any(not airspace.grid.is_free((z, r, c)) for z in range(1, depth)):
+                top.add_patch(
+                    Rectangle(
+                        ((c - 0.5) * cs, (r - 0.5) * cs),
+                        cs,
+                        cs,
+                        facecolor=resolved.obstacle,
+                        edgecolor="none",
+                    )
+                )
+    landing = {station: name for name, station in plan.assignment.items()}
+    for station in plan.stations:
+        x, y, _ = station.position
+        color = colors.get(landing.get(station.name), resolved.axis)
+        top.add_patch(
+            Rectangle(
+                (x - 0.4 * cs, y - 0.4 * cs),
+                0.8 * cs,
+                0.8 * cs,
+                facecolor="none",
+                edgecolor=color,
+                linewidth=1.6,
+            )
+        )
+    times, positions = plan.trajectories.sample(0.05)
+    for q in fleet:
+        points = np.array(positions[q.name])
+        top.plot(
+            points[:, 0], points[:, 1], color=colors[q.name], linewidth=1.6, alpha=0.9
+        )
+        top.plot(
+            q.position[0], q.position[1], marker="o", color=colors[q.name], markersize=7
+        )
+        top.annotate(
+            q.name,
+            (q.position[0], q.position[1]),
+            xytext=(4, 4),
+            textcoords="offset points",
+            fontsize=7,
+            color=colors[q.name],
+        )
+        pad = plan.station_of(q.name).position
+        top.plot(
+            [q.position[0], pad[0]],
+            [q.position[1], pad[1]],
+            color=colors[q.name],
+            linewidth=0.7,
+            linestyle=":",
+            alpha=0.6,
+        )
+    top.set_title(
+        "Top view: optimal assignment (dotted) and the routes flown", fontsize=10
     )
-    axes[1].barh(
-        y + 0.18,
-        scheduled,
-        height=0.36,
-        color=[colors[n] for n in names],
-        label="seconds",
+
+    for q in fleet:
+        points = np.array(positions[q.name])
+        altitude.plot(times, points[:, 2], color=colors[q.name], linewidth=1.3)
+    altitude.set_ylabel("altitude (m)")
+    altitude.set_title(
+        "Altitude: hover, transit, vertical descent onto the pad", fontsize=10
     )
-    axes[1].set_yticks(y)
-    axes[1].set_yticklabels(names, fontsize=8)
-    axes[1].invert_yaxis()
-    axes[1].set_xlabel("timesteps / seconds")
-    axes[1].set_title(
-        "Arrival time: discrete steps at unit speed vs. seconds under the limits",
+    altitude.tick_params(labelbottom=False)
+
+    names_list = list(positions)
+    stacked = np.array([positions[name] for name in names_list])  # (n, T, 3)
+    diff = stacked[:, None, :, :] - stacked[None, :, :, :]
+    dist = np.sqrt((diff**2).sum(axis=3))
+    n = len(names_list)
+    pairwise_min = np.array(
+        [dist[:, :, k][~np.eye(n, dtype=bool)].min() for k in range(len(times))]
+    )
+    separation.plot(times, pairwise_min, color=resolved.agent_color(0), linewidth=1.4)
+    separation.axhline(
+        summary["required_separation"],
+        color=resolved.muted,
+        linewidth=0.9,
+        linestyle="--",
+    )
+    separation.text(
+        times[0],
+        summary["required_separation"],
+        " bodies touch",
+        color=resolved.muted,
+        fontsize=8,
+        va="center",
+    )
+    separation.set_ylim(0, max(pairwise_min.max() * 1.05, 1.0))
+    separation.set_ylabel("closest pair (m)")
+    separation.set_xlabel("time (s)")
+    separation.set_title(
+        "Closest pair over the whole flight: never below %.2f m" % pairwise_min.min(),
         fontsize=10,
     )
-    axes[1].legend(fontsize=8, loc="lower right")
-    figure.tight_layout()
-    path = out("kinodynamic-profiles.png")
+    path = out("quadrotor-docking.png")
     figure.savefig(path, dpi=120, bbox_inches="tight")
     plt.close(figure)
     _done(started, path)
@@ -618,7 +861,7 @@ def lifelong(out) -> None:
 
 
 DEMOS = {
-    "kinodynamic": kinodynamic,
+    "quadrotor": quadrotor,
     "3d": volume,
     "navigation": navigation,
     "lifelong": lifelong,
