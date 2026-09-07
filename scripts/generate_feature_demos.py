@@ -1,4 +1,4 @@
-"""Render the demos for the quadrotor docking, 3D, navigation and lifelong layers.
+"""Render the demos for the quadrotor, trajectory, 3D, navigation and lifelong layers.
 
 One animation and one figure per feature, written to ``.docs/assets`` in the
 same theme as the rest of the gallery, so the README and the site show what
@@ -458,6 +458,126 @@ def _docking_figure(out, airspace, fleet, plan, summary, colors, resolved) -> No
 
 
 # --------------------------------------------------------------------------
+# 1b. joint trajectory optimisation: continuous space, no grid
+# --------------------------------------------------------------------------
+
+
+def _swap_fleet(n=10, radius=9.0, body=0.8):
+    from pymapf.trajectory import Vehicle
+
+    fleet = []
+    for k in range(n):
+        angle = 2 * math.pi * k / n
+        start = (radius * math.cos(angle), radius * math.sin(angle))
+        goal = (-radius * math.cos(angle), -radius * math.sin(angle))
+        fleet.append(Vehicle("v%d" % k, start, goal, radius=body))
+    return fleet
+
+
+def trajectory(out) -> None:
+    import matplotlib.pyplot as plt
+
+    from pymapf.trajectory import plan_joint_trajectories
+
+    resolved = theme_module.apply(THEME)
+    obstacles = [((0.0, 0.0), 1.5)]
+    started = _step("trajectory: optimising six vehicles jointly")
+    plan = plan_joint_trajectories(
+        _swap_fleet(),
+        obstacles=obstacles,
+        v_max=2.0,
+        a_max=4.0,
+        segments=5,
+        samples=70,
+        iterations=25,
+    )
+    summary = plan.summary()
+    print(
+        "%.1fs  %d iterations, %.1f s flight, closest pair %.2f m (need 1.60)"
+        % (
+            time.perf_counter() - started,
+            summary["iterations"],
+            summary["duration"],
+            summary["min_separation"],
+        )
+    )
+
+    # -- the animation --------------------------------------------------------
+    started = _step("trajectory: animating the fleet")
+    animation = viz.animate_trajectories(
+        plan,
+        theme=THEME,
+        fps=20,
+        trail=2.5,
+        title="joint trajectory optimisation: ten vehicles, one problem",
+    )
+    ax = animation._fig.axes[0]
+    for centre, radius in obstacles:
+        ax.add_patch(
+            plt.Circle(
+                centre,
+                radius,
+                facecolor=resolved.obstacle,
+                edgecolor=resolved.axis,
+                zorder=2,
+            )
+        )
+    path = _save_gif(animation, out("animated-joint-trajectories.gif"), fps=20, dpi=100)
+    _done(started, path)
+
+    # -- the figure: paths, separation, speed ---------------------------------
+    started = _step("trajectory: paths, separation and speed")
+    theme_module.apply(THEME)
+    figure = plt.figure(figsize=(11.0, 4.4))
+    grid = figure.add_gridspec(2, 2, width_ratios=[1, 1.15], hspace=0.55, wspace=0.15)
+    paths = figure.add_subplot(grid[:, 0])
+    viz.plot_trajectories(plan, ax=paths, theme=THEME, show_bodies=True)
+    for centre, radius in obstacles:
+        paths.add_patch(
+            plt.Circle(
+                centre,
+                radius,
+                facecolor=resolved.obstacle,
+                edgecolor=resolved.axis,
+                zorder=2,
+            )
+        )
+    paths.set_title(
+        "Ten vehicles swapping around an obstacle\nbodies drawn at the closest approach",
+        fontsize=10,
+    )
+    separation = figure.add_subplot(grid[0, 1])
+    viz.plot_separation(plan, ax=separation, theme=THEME)
+    separation.set_title(
+        "Closest pair: %.2f m, required %.2f m"
+        % (summary["min_separation"], plan.required_separation("v0", "v1")),
+        fontsize=10,
+    )
+    separation.set_xlabel("")
+
+    speeds = figure.add_subplot(grid[1, 1], sharex=separation)
+    times = plan.times(0.01)
+    for k, (name, trajectory_) in enumerate(plan.trajectories.items()):
+        speeds.plot(
+            times,
+            np.linalg.norm(trajectory_.sample(times, 1), axis=1),
+            color=resolved.agent_color(k),
+            linewidth=1.2,
+        )
+    speeds.axhline(plan.v_max, color=resolved.muted, linewidth=0.9, linestyle="--")
+    speeds.text(
+        times[0], plan.v_max, " v_max", color=resolved.muted, fontsize=8, va="bottom"
+    )
+    speeds.set_ylabel("speed (m/s)")
+    speeds.set_xlabel("time (s)")
+    speeds.set_title("Speed: the limit is met exactly, by dilating time", fontsize=10)
+    path = out("joint-trajectories.png")
+    figure.savefig(path, dpi=120, bbox_inches="tight")
+    plt.close("all")
+    _done(started, path)
+
+
+# --------------------------------------------------------------------------
 # 2. three dimensions: routes threading a stack of floors
 # --------------------------------------------------------------------------
 
@@ -862,6 +982,7 @@ def lifelong(out) -> None:
 
 DEMOS = {
     "quadrotor": quadrotor,
+    "trajectory": trajectory,
     "3d": volume,
     "navigation": navigation,
     "lifelong": lifelong,

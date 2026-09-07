@@ -19,6 +19,7 @@ at the end.
 - [Learning-based MAPF](#learning-based-mapf) *(surveyed, not implemented)*
 - [Variants and extensions](#variants-and-extensions) *(surveyed, not implemented)*
 - [Kinodynamic execution](#kinodynamic-execution)
+- [Trajectory optimisation](#trajectory-optimisation)
 - [Decentralized flocking](#decentralized-flocking)
 - [Formation control](#formation-control)
 - [Decentralized coverage](#decentralized-coverage)
@@ -134,6 +135,19 @@ Implemented in `pymapf/kinodynamic/`.
 | Quadrotor swarm trajectories from discrete MAPF | `aerial.plan_docking` (roadmap and timing; no spline smoothing, no downwash model) | Hönig, W.; Preiss, J. A.; Kumar, T. K. S.; Sukhatme, G. S.; and Ayanian, N. 2018. *Trajectory planning for quadrotor swarms.* IEEE Transactions on Robotics 34(4): 856–869. |
 | Hungarian algorithm | `core.assignment.hungarian` | Kuhn, H. W. 1955. *The Hungarian method for the assignment problem.* Naval Research Logistics Quarterly 2(1–2): 83–97. |
 | Shortest augmenting paths for assignment | `core.assignment.hungarian` | Jonker, R.; and Volgenant, A. 1987. *A shortest augmenting path algorithm for dense and sparse linear assignment problems.* Computing 38(4): 325–340. |
+
+## Trajectory optimisation
+
+Implemented in `pymapf/trajectory/`.
+
+| Work | Module | Reference |
+|---|---|---|
+| **Minimum-snap polynomial trajectories** | `polynomial.cost_matrix` | Mellinger, D.; and Kumar, V. 2011. *Minimum snap trajectory generation and control for quadrotors.* ICRA 2011: 2520–2525. |
+| **Sequential convex programming for a fleet** | `joint.plan_joint_trajectories` | Augugliaro, F.; Schoellig, A. P.; and D'Andrea, R. 2012. *Generation of collision-free trajectories for a quadrocopter fleet: A sequential convex programming approach.* IROS 2012: 1917–1922. |
+| Discrete plan as the seed for continuous optimisation | `joint.waypoints_from_solution` | Chen, Y.; Cutler, M.; and How, J. P. 2015. *Decoupled multiagent path planning via incremental sequential convex programming.* ICRA 2015: 5954–5961. |
+| Convex optimisation, and why a supporting half-space is the conservative linearisation | `joint._linearise` | Boyd, S.; and Vandenberghe, L. 2004. *Convex Optimization.* Cambridge University Press, ch. 4. |
+| Method of multipliers (the QP solver) | `qp.solve_qp` | Hestenes, M. R. 1969. *Multiplier and gradient methods.* Journal of Optimization Theory and Applications 4(5): 303–320; Powell, M. J. D. 1969. *A method for nonlinear constraints in minimization problems.* In Fletcher, R. (ed.), *Optimization*, Academic Press. |
+| Semismooth Newton on the piecewise-linear gradient | `qp.solve_qp` | Nocedal, J.; and Wright, S. J. 2006. *Numerical Optimization*, 2nd ed. Springer, ch. 17. |
 
 ## Decentralized flocking
 
@@ -487,6 +501,23 @@ share an endpoint look like a permanent collision, which the plan may well
 require. The remaining gap is passing on *adjacent* vertices without a shared
 one, which the model does not see; on a unit grid that keeps one cell, and
 `TrajectorySet.min_separation` samples the rest.
+
+**Joint trajectory optimisation** follows Augugliaro et al.'s formulation --
+minimum-snap polynomials, separation linearised as the supporting half-space
+at the current iterate, iterated inside a trust region -- with three
+departures. The equality constraints (endpoints, rest conditions, continuity)
+are eliminated once into an orthonormal null-space basis rather than carried
+into every subproblem, which is what keeps the iterations cheap. The sampled
+separation constraints carry a bound on how far the distance can dip between
+two samples, computed from each pair's own relative speed; the paper enforces
+them at the sample times only, and the tests here measure what that costs
+(0.742 m realised against a 0.800 m requirement on a head-on pair). And the
+speed and acceleration limits, whose linearisation is an outer approximation,
+are met exactly afterwards by dilating the fleet's clock -- uniform dilation
+leaves every pairwise separation unchanged, so it cannot undo the work of the
+optimisation. Segment times are allocated by leg length with a floor rather
+than optimised as Mellinger and Kumar do; a one-cell leg from a grid seed
+would otherwise take a twentieth of the flight and dominate the snap cost.
 
 **Quadrotor docking** stacks three exact steps where CAPT solves one joint
 problem. CAPT's insight is that in free space the minimum-sum-of-squares
