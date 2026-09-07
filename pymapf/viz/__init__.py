@@ -31,6 +31,7 @@ except ModuleNotFoundError as error:  # pragma: no cover
     ) from error
 
 from .animate import animate_search, animate_solution, save as save_animation, to_jshtml
+from .continuous import animate_trajectories, plot_separation, plot_trajectories
 from .charts import (
     dashboard,
     plot_cost_comparison,
@@ -84,4 +85,7 @@ __all__ = [
     "STATUS",
     "apply",
     "get_theme",
+    "animate_trajectories",
+    "plot_separation",
+    "plot_trajectories",
 ]

@@ -8,6 +8,35 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Joint trajectory optimisation in continuous space** (`pymapf.trajectory`):
+  `plan_joint_trajectories` optimises every vehicle's piecewise-polynomial
+  trajectory in R^n in one problem -- minimum snap, subject to endpoints and
+  rest conditions, C^k continuity, pairwise separation by the vehicles'
+  bodies, sphere obstacles, and speed and acceleration limits. Non-convex
+  separation is handled by sequential convex programming with supporting
+  half-spaces (conservative, so a feasible subproblem solution is genuinely
+  collision-free) inside a trust region. The equality constraints are
+  eliminated once into a null-space basis, so each iteration is a solve in
+  the reduced coordinates. Checked against SLSQP end to end: the same optimum
+  to 3.8e-11 relative.
+  - The separation constraints hold *between* the sample times too, by a
+    bound on the dip derived from each pair's own relative speed. Without it a
+    head-on pair that clears 0.800 m at every sample reaches 0.742 m between
+    two of them, which a test measures both ways.
+  - Speed and acceleration limits are met exactly by dilating the fleet's
+    clock, which preserves every pairwise separation because it scales every
+    vehicle equally.
+  - `waypoints_from_solution` seeds the optimiser from any discrete
+    `Solution`, so the fleet inherits the homotopy a complete MAPF solver
+    chose before the continuous optimiser smooths it.
+- `pymapf.trajectory.solve_qp`: a dense quadratic program solver in numpy
+  alone -- augmented Lagrangian on the inequalities with a damped
+  semismooth-Newton inner solve -- and `PiecewisePolynomial`, the
+  normalised-time trajectory representation the layer is built on.
+- `viz.plot_trajectories`, `viz.plot_separation` and
+  `viz.animate_trajectories` draw continuous fleets in 2D and 3D, with the
+  bodies at the closest approach and the pairwise separation against what the
+  bodies require.
 - **Quadrotor docking** (`pymapf.aerial`): a hovering fleet is assigned to
   ground stations, routed and flown down on collision-free, kinematically
   feasible trajectories. `Airspace.build` discretises a box of air into a

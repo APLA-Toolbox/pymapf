@@ -54,6 +54,7 @@ Loved the project? Please consider [donating](https://www.buymeacoffee.com/dq01a
 - 🎬 **Visualisation**: static plots, congestion heatmaps, space-time cubes, timelines, GIF/MP4 animations, live views (window *or* terminal)
 - 🚚 **From plans to trajectories**: MAPF-POST-style scheduling turns any discrete plan into time-parameterised, speed- and acceleration-limited trajectories, straight stretches flown as single runs, with a per-hand-over safety margin derived from the actual geometry
 - 🚁 **Quadrotor docking**: `pymapf.aerial` assigns a hovering fleet to ground stations (Hungarian, exact), routes it through a voxel airspace (CBS) and flies it down on collision-free kinematic trajectories
+- 🛩️ **Joint trajectory optimisation**: `pymapf.trajectory` optimises every vehicle's polynomial trajectory in continuous space in one problem, by sequential convex programming, with a QP solver of its own
 - 🔎 Reactive distributed planners (Nonlinear Model Predictive Control, Velocity Obstacles)
 - 🪶 Zero runtime dependencies in the core — the solvers are pure standard library
 
@@ -295,6 +296,81 @@ eight vehicles, ten pads, required separation 0.70 m between bodies, measured
 resolution.
 
 ![top view, altitude and closest pair over time](.docs/assets/quadrotor-docking.png)
+
+### Joint trajectory optimisation 🛩️
+
+Everything above plans a **path**: cells on a graph, timed afterwards. This
+plans the **trajectory** itself, in continuous space, for the whole fleet at
+once. No grid: positions are floats in R², R³ or R^n, and velocity,
+acceleration and jerk are exact derivatives of a polynomial rather than
+differences of a sampled path.
+
+```python
+from pymapf.trajectory import Vehicle, plan_joint_trajectories
+
+fleet = [Vehicle("a", (0.0, 0.0), (10.0, 10.0), radius=0.35),
+         Vehicle("b", (10.0, 0.0), (0.0, 10.0), radius=0.35)]
+
+plan = plan_joint_trajectories(fleet, v_max=2.0, a_max=4.0,
+                               obstacles=[((5.0, 5.0), 1.5)])
+
+plan.trajectories["a"](3.2)        # position in metres, mid-flight
+plan.trajectories["a"](3.2, 1)     # velocity; 2 is acceleration
+plan.min_separation()              # (distance, time, pair) over the whole flight
+plan.is_safe(), plan.max_speed()
+```
+
+One problem, not one per vehicle:
+
+$$\min_{p} \; \sum_i \int_0^T \lVert p_i^{(4)}(t) \rVert^2 dt
+\quad\text{s.t.}\quad
+\lVert p_i(t) - p_j(t)\rVert \ge r_i + r_j, \;\;
+\lVert \dot p_i(t)\rVert \le v_{\max}, \;\;
+\lVert \ddot p_i(t)\rVert \le a_{\max}$$
+
+The objective is snap — the derivative a quadrotor's inputs are flat in
+(Mellinger and Kumar 2011) — with the endpoints, the rest conditions and
+C⁴ continuity as equalities. Separation is the hard part: "stay apart" is the
+complement of a ball, so the feasible set is not convex. The optimiser is
+**sequential convex programming** (Augugliaro, Schoellig and D'Andrea 2012):
+replace each separation constraint by the half-space supporting it at the
+current iterate, solve the convex program, re-linearise, repeat inside a
+trust region. The half-space lies *inside* the feasible set, so a solution to
+the subproblem is genuinely collision-free — the approximation is
+conservative, not optimistic.
+
+<img src=".docs/assets/animated-joint-trajectories.gif" alt="Ten vehicles swapping positions around an obstacle on jointly optimised trajectories" width="520">
+
+Three things worth knowing, each measured:
+
+- **Sampling is where the bodies touch.** Constraints are written at finitely
+  many times, and a pair that clears the bar at two consecutive samples can
+  dip below it in between. On a two-vehicle head-on test that dip is real:
+  0.800 m at every sample and **0.742 m** between two of them, for a 0.800 m
+  requirement. So the requirement at each sample is raised by a bound on the
+  dip, derived from the pair's own relative speed. It costs 26% more snap and
+  it is the difference between a plan that is safe and a plan that is safe
+  where you looked. Pass `inter_sample=False` for the cheaper, weaker version.
+- **The speed limit is met by dilating time.** A norm bound is convex, so its
+  linearisation is an *outer* approximation and the optimiser can finish a
+  hair over. Rather than fudge it, the fleet's clock is scaled by the smallest
+  factor that brings every vehicle inside its envelope. Dilation scales every
+  vehicle equally, so the geometry — and every pairwise separation — is
+  preserved exactly. That is a test.
+- **A discrete plan makes a good seed.** `waypoints_from_solution(solution)`
+  turns any CBS or LaCAM plan into the waypoints this optimiser starts from,
+  which is how the fleet inherits a *globally* sensible homotopy — which side
+  of the obstacle, who goes first — that no local optimiser can find on its own.
+
+Validated against `scipy.optimize.minimize(method="SLSQP")` on the same
+problem: the same optimum to **3.8 × 10⁻¹¹** relative, and the same closest
+approach. The subproblems are solved by `pymapf.trajectory.solve_qp`, an
+augmented-Lagrangian QP in numpy alone, also checked against SLSQP. The
+equality constraints are eliminated once into a null-space basis, which is
+what makes each iteration a 144-dimensional solve rather than an
+816-dimensional one on a six-vehicle instance.
+
+![paths, closest pair and speed](.docs/assets/joint-trajectories.png)
 
 ### Watching the search
 
@@ -683,7 +759,7 @@ sim.visualize("filename_test_2", 10, 10)
 
 ```bash
 python scripts/generate_gallery.py     # every figure in .docs/assets
-python scripts/generate_feature_demos.py  # the quadrotor, 3D, navigation and lifelong demos
+python scripts/generate_feature_demos.py  # the quadrotor, trajectory, 3D, navigation and lifelong demos
 python scripts/make_promo.py           # the promo film
 python scripts/make_rl_promo.py        # the learning-layer film
 python scripts/train_rl.py             # train IPPO/MAPPO, benchmark vs CBS
